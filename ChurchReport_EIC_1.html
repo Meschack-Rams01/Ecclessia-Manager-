@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -300,6 +302,11 @@ tbody tr:hover td{background:rgba(139,92,246,.05);color:var(--text);}
 // ═══════════════════════════════════════════════
 const K={EXT:'eic_ext',RAP:'eic_rap',SES:'eic_ses',LOGO:'eic_logo',SET:'eic_set',SEED:'eic_seeded'};
 
+// Configure Supabase (remplace par tes valeurs)
+const SUPABASE_URL = 'https://YOUR_PROJECT_REF.supabase.co';
+const SUPABASE_KEY = 'YOUR_ANON_PUBLIC_KEY';
+const supa = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
 const DEF_EXTS=[
   {id:'ext_nic',nom:'Nicosie Centre',couleur:'#8B5CF6',ville:'Nicosie',pays:'Chypre',adresse:'12 Avenue de la Paix, Nicosie',dateCreation:'2018-03-15',
    pasteur:{nom:'Pasteur Emmanuel Kabila',email:'e.kabila@eic.cy',tel:'+357 99 123 456'},
@@ -351,6 +358,25 @@ function seedIfNeeded(){
 }
 seedIfNeeded();
 
+// Charge les données partagées depuis Supabase au démarrage
+async function syncFromSupabase(){
+  if(!supa) return;
+  try{
+    const {data:extRows,error:extErr}=await supa.from('extensions').select('data');
+    if(!extErr && extRows){
+      const exts=extRows.map(r=>r.data).filter(Boolean);
+      if(exts.length)localStorage.setItem(K.EXT,JSON.stringify(exts));
+    }
+    const {data:rapRows,error:rapErr}=await supa.from('rapports').select('data');
+    if(!rapErr && rapRows){
+      const raps=rapRows.map(r=>r.data).filter(Boolean);
+      if(raps.length)localStorage.setItem(K.RAP,JSON.stringify(raps));
+    }
+  }catch(e){
+    // en cas d'erreur réseau, on reste sur localStorage
+  }
+}
+
 // ═══════════════════════════════════════════════
 // STORE
 // ═══════════════════════════════════════════════
@@ -358,13 +384,46 @@ const Store={
   // Extensions
   getExts(){ try{return JSON.parse(localStorage.getItem(K.EXT))||DEF_EXTS;}catch{return DEF_EXTS;} },
   getExt(id){ return this.getExts().find(e=>e.id===id)||null; },
-  saveExt(ext){ const a=this.getExts(); const i=a.findIndex(e=>e.id===ext.id); if(i>=0)a[i]=ext;else a.push(ext); localStorage.setItem(K.EXT,JSON.stringify(a)); },
-  delExt(id){ localStorage.setItem(K.EXT,JSON.stringify(this.getExts().filter(e=>e.id!==id))); localStorage.setItem(K.RAP,JSON.stringify(this.getRaps().filter(r=>r.extensionId!==id))); },
+  saveExt(ext){
+    const a=this.getExts(); const i=a.findIndex(e=>e.id===ext.id);
+    if(i>=0)a[i]=ext;else a.push(ext);
+    localStorage.setItem(K.EXT,JSON.stringify(a));
+    if(supa){ // sync Supabase (fire-and-forget)
+      supa.from('extensions').upsert({id:ext.id,data:ext}).then(()=>{}).catch(()=>{});
+    }
+  },
+  delExt(id){
+    localStorage.setItem(K.EXT,JSON.stringify(this.getExts().filter(e=>e.id!==id)));
+    localStorage.setItem(K.RAP,JSON.stringify(this.getRaps().filter(r=>r.extensionId!==id)));
+    if(supa){
+      supa.from('extensions').delete().eq('id',id).then(()=>{}).catch(()=>{});
+      supa.from('rapports').delete().eq('extension_id',id).then(()=>{}).catch(()=>{});
+    }
+  },
   // Rapports
   getRaps(extId=null){ try{const a=JSON.parse(localStorage.getItem(K.RAP))||[];return extId?a.filter(r=>r.extensionId===extId):a;}catch{return[];} },
   getRap(id){ return this.getRaps().find(r=>r.id===id)||null; },
-  saveRap(r){ const a=this.getRaps(); const i=a.findIndex(x=>x.id===r.id); r.updatedAt=new Date().toISOString(); if(i>=0)a[i]=r;else a.push(r); localStorage.setItem(K.RAP,JSON.stringify(a)); return r; },
-  delRap(id){ localStorage.setItem(K.RAP,JSON.stringify(this.getRaps().filter(r=>r.id!==id))); },
+  saveRap(r){
+    const a=this.getRaps(); const i=a.findIndex(x=>x.id===r.id);
+    r.updatedAt=new Date().toISOString();
+    if(i>=0)a[i]=r;else a.push(r);
+    localStorage.setItem(K.RAP,JSON.stringify(a));
+    if(supa){
+      supa.from('rapports').upsert({
+        id:r.id,
+        extension_id:r.extensionId,
+        date:r.date,
+        data:r
+      }).then(()=>{}).catch(()=>{});
+    }
+    return r;
+  },
+  delRap(id){
+    localStorage.setItem(K.RAP,JSON.stringify(this.getRaps().filter(r=>r.id!==id)));
+    if(supa){
+      supa.from('rapports').delete().eq('id',id).then(()=>{}).catch(()=>{});
+    }
+  },
   // Session
   getSes(){ try{return JSON.parse(localStorage.getItem(K.SES));}catch{return null;} },
   setSes(s){ localStorage.setItem(K.SES,JSON.stringify(s)); },
@@ -588,12 +647,20 @@ function startApp(){
   }
 }
 
-// Check existing session
+// Check existing session + synchronisation Supabase
 (function(){
   const s=Auth.ses();
-  if(s){startApp();return;}
-  populateExtSel();
-  updateLogoUI();
+  if(s){
+    syncFromSupabase().then(()=>startApp());
+    return;
+  }
+  syncFromSupabase().then(()=>{
+    populateExtSel();
+    updateLogoUI();
+  }).catch(()=>{
+    populateExtSel();
+    updateLogoUI();
+  });
 })();
 
 // ═══════════════════════════════════════════════
@@ -752,6 +819,7 @@ const DEVISES=[
   {c:'EUR',s:'€'},{c:'USD',s:'$'},{c:'GBP',s:'£'},{c:'CDF',s:'FC'},{c:'XAF',s:'FCFA'},
   {c:'XOF',s:'CFA'},{c:'NGN',s:'₦'},{c:'ZAR',s:'R'},{c:'KES',s:'KSh'},{c:'GHS',s:'GH₵'},
   {c:'TZS',s:'TSh'},{c:'UGX',s:'USh'},{c:'RWF',s:'RF'},{c:'CHF',s:'CHF'},{c:'CAD',s:'CA$'},
+  {c:'TRY',s:'₺'},
 ];
 
 window.openExtForm=function(extId){
