@@ -2,6 +2,7 @@ import { Store, Auth, seedIfNeeded, type Rapport, type Session } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
 import { fmt, fmtD, uid, mName } from "./utils";
 import { icon } from "./icons";
+import { syncFromSupabase } from "./supabase";
 
 declare global {
   interface Window {
@@ -1508,7 +1509,10 @@ window.showRapModal = showRapModal;
 window.doExportPDF = doExportPDF;
 window.doExportDOCX = doExportDOCX;
 
-export function initApp() {
+export async function initApp() {
+  // Supabase => localStorage (source de vérité distante)
+  await syncFromSupabase((msg) => toast(msg, "error"));
+  // Optionnel: seed de données de démo en local uniquement si DEMO_MODE=true
   seedIfNeeded();
 
   window.switchTab = function (tab: string) {

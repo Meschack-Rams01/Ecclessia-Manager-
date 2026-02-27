@@ -28,7 +28,11 @@ export type Session = { role: "admin" } | { role: "extension"; extId: string };
 
 export type Settings = { nom: string; adminPw: string };
 
+const DEMO_MODE = false;
+
 export function seedIfNeeded(): void {
+  // En production, Supabase est la source de vérité; le seed ne sert qu'en mode démo local.
+  if (!DEMO_MODE) return;
   if (localStorage.getItem(K.SEED)) return;
   localStorage.setItem(K.EXT, JSON.stringify(DEF_EXTS));
 
