@@ -1,4 +1,5 @@
 import { DEF_EXTS, K, type Extension } from "./constants";
+import { saveExtToFirebase, deleteExtFromFirebase, saveRapToFirebase, deleteRapFromFirebase } from "./firebase";
 
 export type RapportDepense = { motif: string; montant: number };
 export type RapportConverti = { nom: string; tel?: string };
@@ -114,6 +115,8 @@ export const Store = {
     if (i >= 0) a[i] = ext;
     else a.push(ext);
     localStorage.setItem(K.EXT, JSON.stringify(a));
+    // Sync to Firebase in background
+    saveExtToFirebase(ext).catch(console.error);
   },
   delExt(id: string): void {
     localStorage.setItem(
@@ -124,6 +127,8 @@ export const Store = {
       K.RAP,
       JSON.stringify(this.getRaps().filter((r) => r.extensionId !== id)),
     );
+    // Sync deletion to Firebase in background
+    deleteExtFromFirebase(id).catch(console.error);
   },
 
   // Rapports

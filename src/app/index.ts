@@ -2,7 +2,7 @@ import { Store, Auth, seedIfNeeded, type Rapport, type Session } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
 import { fmt, fmtD, uid, mName } from "./utils";
 import { icon } from "./icons";
-import { syncFromSupabase } from "./supabase";
+import { syncFromFirebase, subscribeToExtensions } from "./firebase";
 
 declare global {
   interface Window {
@@ -150,6 +150,9 @@ function startApp() {
   document.getElementById("app")!.style.display = "flex";
   const ses = Auth.ses()!;
 
+  // Initialize real-time sync for extensions
+  initRealtimeSync();
+
   if (Auth.isAdmin()) {
     document.getElementById("sb-ext-name")!.textContent = "Administrateur Général";
     document.getElementById("sb-ext-role")!.textContent = "Accès réseau complet";
@@ -167,6 +170,31 @@ function startApp() {
     initRouter();
     navTo("/ext/dashboard");
   }
+}
+
+function initRealtimeSync() {
+  // Subscribe to extension changes from Supabase
+  subscribeToExtensions((ext, action) => {
+    if (action === "DELETE") {
+      // Force refresh from Firebase on delete
+      syncFromFirebase().then(() => {
+        populateExtSel();
+        toast("Une extension a été supprimée", "success");
+      });
+    } else if (ext) {
+      // Update local storage with the new/updated extension
+      const a = Store.getExts();
+      const i = a.findIndex((e) => e.id === ext.id);
+      if (i >= 0) {
+        a[i] = ext;
+      } else {
+        a.push(ext);
+      }
+      localStorage.setItem("eic_ext", JSON.stringify(a));
+      populateExtSel();
+      toast(`Extension "${ext.nom}" mise à jour`, "success");
+    }
+  });
 }
 
 function statCard(iconName: string, label: string, value: string, sub: string) {
@@ -1510,8 +1538,8 @@ window.doExportPDF = doExportPDF;
 window.doExportDOCX = doExportDOCX;
 
 export async function initApp() {
-  // Supabase => localStorage (source de vérité distante)
-  await syncFromSupabase((msg) => toast(msg, "error"));
+  // Firebase => localStorage (source de vérité distante)
+  await syncFromFirebase((msg) => toast(msg, "error"));
   // Optionnel: seed de données de démo en local uniquement si DEMO_MODE=true
   seedIfNeeded();
 
