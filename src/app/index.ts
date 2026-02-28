@@ -975,8 +975,8 @@ function pgExtNew(extId: string) {
 
   const params = curParams();
   const rapId = params.rap;
-  if (rapId && rapFormData) {
-  } else {
+  // Only reset if explicitly editing an existing rap or no form data exists
+  if (!rapFormData) {
     rapFormData = {
       id: uid(),
       extensionId: extId,
