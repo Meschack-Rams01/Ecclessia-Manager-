@@ -415,13 +415,23 @@ function doExportPDF(rapId: string) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  doc.setFontSize(18);
-  doc.text("RAPPORT DE CULTE", pageWidth / 2, 20, { align: "center" });
-  doc.setFontSize(12);
-  doc.text(ext?.nom || "Emerge in Christ", pageWidth / 2, 28, { align: "center" });
-  doc.text(`Date: ${fmtD(r.date)}`, pageWidth / 2, 34, { align: "center" });
+  // Add logo if available
+  const logo = Store.getLogo();
+  if (logo) {
+    try {
+      doc.addImage(logo, "PNG", pageWidth / 2 - 15, 5, 30, 30);
+    } catch (e) {
+      // If logo fails to load, continue without it
+    }
+  }
 
-  let y = 50;
+  doc.setFontSize(18);
+  doc.text("RAPPORT DE CULTE", pageWidth / 2, 45, { align: "center" });
+  doc.setFontSize(12);
+  doc.text(ext?.nom || "Emerge in Christ", pageWidth / 2, 53, { align: "center" });
+  doc.text(`Date: ${fmtD(r.date)}`, pageWidth / 2, 59, { align: "center" });
+
+  let y = 75;
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text("INFORMATIONS DU CULTE", 15, y);
