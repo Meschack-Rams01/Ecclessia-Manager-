@@ -2,6 +2,7 @@ import { Store, Auth, seedIfNeeded, type Rapport, type Session } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
 import { fmt, fmtD, uid, mName } from "./utils";
 import { icon } from "./icons";
+import { syncFromFirebase, subscribeToExtensions } from "./firebase";
 
 declare global {
   interface Window {
@@ -49,6 +50,15 @@ const _routes: Record<string, (params: Record<string, string>) => void> = {};
 function regRoute(path: string, fn: (params: Record<string, string>) => void) {
   _routes[path] = fn;
 }
+
+// Login screen functions available immediately
+window.switchTab = function (tab: string) {
+  document.querySelectorAll(".login-tab").forEach((t, i) => {
+    t.classList.toggle("active", i === (tab === "extension" ? 0 : 1));
+  });
+  document.getElementById("panel-extension")!.classList.toggle("active", tab === "extension");
+  document.getElementById("panel-admin")!.classList.toggle("active", tab === "admin");
+};
 
 function navTo(path: string, params: Record<string, string> = {}) {
   const q = Object.keys(params).length ? "?" + new URLSearchParams(params).toString() : "";
@@ -1580,14 +1590,6 @@ export async function initApp() {
   await syncFromFirebase((msg) => toast(msg, "error"));
   // Optionnel: seed de données de démo en local uniquement si DEMO_MODE=true
   seedIfNeeded();
-
-  window.switchTab = function (tab: string) {
-    document.querySelectorAll(".login-tab").forEach((t, i) => {
-      t.classList.toggle("active", i === (tab === "extension" ? 0 : 1));
-    });
-    document.getElementById("panel-extension")!.classList.toggle("active", tab === "extension");
-    document.getElementById("panel-admin")!.classList.toggle("active", tab === "admin");
-  };
 
   window.doLogin = function (type: string) {
     const err = document.getElementById("login-error")!;
