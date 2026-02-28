@@ -25,6 +25,7 @@ export const DEVISES: Devise[] = [
   { c: "RWF", s: "RF" },
   { c: "CHF", s: "CHF" },
   { c: "CAD", s: "CA$" },
+  { c: "TRY", s: "₺" },
 ];
 
 export type Extension = {

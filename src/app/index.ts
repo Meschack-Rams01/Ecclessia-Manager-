@@ -477,41 +477,118 @@ function doExportPDF(rapId: string) {
   y += 12;
   doc.setFont("helvetica", "bold");
   doc.text("RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS", 15, y);
-  y += 8;
+  y += 10;
+  
+  // Table header
+  doc.setFont("helvetica", "bold");
+  doc.text("Type de recette", 15, y);
+  doc.text("Montant", 70, y);
+  doc.text("Dîme 10%", 105, y);
+  doc.text("Social", 140, y);
+  doc.text("Reste", 175, y);
+  y += 2;
+  doc.line(15, y, 195, y);
+  y += 6;
+  
+  // Table rows
   doc.setFont("helvetica", "normal");
-  doc.text(`Total Dîmes (10%): ${fmt(r.ventilation?.totalDime, sym)}`, 15, y);
+  const v = r.ventilation;
+  const socialPct = Store.getSet().socialPct || 10;
+  
+  doc.text("Offrandes ordinaires", 15, y);
+  doc.text(fmt(r.offrandes?.ordinaires || 0, sym), 70, y);
+  doc.text(fmt(v?.ordinaires.dime || 0, sym), 105, y);
+  doc.text(fmt(v?.ordinaires.social || 0, sym), 140, y);
+  doc.text(fmt(v?.ordinaires.reste || 0, sym), 175, y);
   y += 6;
-  doc.text(`Total Prélèvement Social: ${fmt(r.ventilation?.totalSocial, sym)}`, 15, y);
+  
+  doc.text("Offrandes pour Orateur", 15, y);
+  doc.text(fmt(r.offrandes?.orateur || 0, sym), 70, y);
+  doc.text(fmt(v?.orateur.dime || 0, sym), 105, y);
+  doc.text(fmt(v?.orateur.social || 0, sym), 140, y);
+  doc.text(fmt(v?.orateur.reste || 0, sym), 175, y);
   y += 6;
-  doc.text(`Reste disponible: ${fmt(r.ventilation?.reste, sym)}`, 15, y);
+  
+  doc.text("Dîmes", 15, y);
+  doc.text(fmt(r.offrandes?.dimes || 0, sym), 70, y);
+  doc.text(fmt(v?.dimes.dime || 0, sym), 105, y);
+  doc.text(fmt(v?.dimes.social || 0, sym), 140, y);
+  doc.text(fmt(v?.dimes.reste || 0, sym), 175, y);
+  y += 6;
+  
+  doc.text("Actions de Grâce", 15, y);
+  doc.text(fmt(r.offrandes?.actionsGrace || 0, sym), 70, y);
+  doc.text(fmt(v?.actionsGrace.dime || 0, sym), 105, y);
+  doc.text(fmt(v?.actionsGrace.social || 0, sym), 140, y);
+  doc.text(fmt(v?.actionsGrace.reste || 0, sym), 175, y);
+  y += 2;
+  doc.line(15, y, 195, y);
+  y += 6;
+  
+  doc.setFont("helvetica", "bold");
+  doc.text("TOTAL", 15, y);
+  doc.text(fmt(r.offrandes?.total || 0, sym), 70, y);
+  doc.text(fmt(v?.totalDime || 0, sym), 105, y);
+  doc.text(fmt(v?.totalSocial || 0, sym), 140, y);
+  doc.text(fmt(v?.reste || 0, sym), 175, y);
 
-  y += 12;
+  y += 15;
   doc.setFont("helvetica", "bold");
   doc.text("DÉPENSES", 15, y);
-  y += 8;
+  y += 10;
+  
+  // Expenses table header
+  doc.setFont("helvetica", "bold");
+  doc.text("N°", 15, y);
+  doc.text("Montant", 70, y);
+  doc.text("Motif", 105, y);
+  y += 2;
+  doc.line(15, y, 195, y);
+  y += 6;
+  
   doc.setFont("helvetica", "normal");
   if (r.depenses?.length) {
-    r.depenses.forEach((d) => {
-      doc.text(`- ${d.motif}: ${fmt(d.montant, sym)}`, 15, y);
+    r.depenses.forEach((d, i) => {
+      doc.text(String(i + 1), 15, y);
+      doc.text(fmt(d.montant, sym), 70, y);
+      doc.text(d.motif, 105, y);
       y += 6;
     });
-    doc.setFont("helvetica", "bold");
-    doc.text(`Total dépenses: ${fmt(r.totalDepenses, sym)}`, 15, y);
-    doc.setFont("helvetica", "normal");
+    y += 2;
+    doc.line(15, y, 195, y);
     y += 6;
-    doc.text(`Solde final: ${fmt(r.soldeFinal, sym)}`, 15, y);
+    doc.setFont("helvetica", "bold");
+    doc.text("Total dépenses", 15, y);
+    doc.text(fmt(r.totalDepenses || 0, sym), 70, y);
+    y += 6;
+    doc.text("Reste final", 15, y);
+    doc.text(fmt(r.soldeFinal || 0, sym), 70, y);
   } else {
+    doc.setFont("helvetica", "normal");
     doc.text("Aucune dépense", 15, y);
+    y += 6;
+    doc.text("Reste final", 15, y);
+    doc.text(fmt(r.soldeFinal || 0, sym), 70, y);
   }
 
   if (r.nouveaux?.length) {
-    y += 12;
+    y += 15;
     doc.setFont("helvetica", "bold");
     doc.text("ACCUEIL DES NOUVEAUX", 15, y);
-    y += 8;
+    y += 10;
+    
+    // New converts table header
+    doc.setFont("helvetica", "bold");
+    doc.text("Noms", 15, y);
+    doc.text("Téléphone", 105, y);
+    y += 2;
+    doc.line(15, y, 195, y);
+    y += 6;
+    
     doc.setFont("helvetica", "normal");
     r.nouveaux.forEach((n) => {
-      doc.text(`- ${n.nom}${n.tel ? ` (${n.tel})` : ""}`, 15, y);
+      doc.text(n.nom, 15, y);
+      doc.text(n.tel || "—", 105, y);
       y += 6;
     });
   }
@@ -537,50 +614,122 @@ async function doExportDOCX(rapId: string) {
 
   const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle } = (window as any).docx;
 
-  const tableRows = [
+  const v = r.ventilation;
+  const socialPct = Store.getSet().socialPct || 10;
+
+  // Table for RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS
+  const repartitionRows = [
     new TableRow({
       children: [
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Catégorie", bold: true })] })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Détails", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Type de recette", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Montant", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Dîme 10%", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Social ${socialPct}%`, bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Reste", bold: true })] })] }),
       ],
     }),
     new TableRow({
       children: [
-        new TableCell({ children: [new Paragraph("Heure")] }),
-        new TableCell({ children: [new Paragraph(`${r.heureDebut || "—"} - ${r.heureFin || "—"}`)] }),
+        new TableCell({ children: [new Paragraph("Offrandes ordinaires")] }),
+        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.ordinaires || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.ordinaires.dime || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.ordinaires.social || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.ordinaires.reste || 0, sym))] }),
       ],
     }),
     new TableRow({
       children: [
-        new TableCell({ children: [new Paragraph("Modérateur")] }),
-        new TableCell({ children: [new Paragraph(r.moderateur || "—")] }),
+        new TableCell({ children: [new Paragraph("Offrandes pour Orateur")] }),
+        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.orateur || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.orateur.dime || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.orateur.social || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.orateur.reste || 0, sym))] }),
       ],
     }),
     new TableRow({
       children: [
-        new TableCell({ children: [new Paragraph("Prédicateur")] }),
-        new TableCell({ children: [new Paragraph(r.predicateur || "—")] }),
+        new TableCell({ children: [new Paragraph("Dîmes")] }),
+        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.dimes || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.dimes.dime || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.dimes.social || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.dimes.reste || 0, sym))] }),
       ],
     }),
     new TableRow({
       children: [
-        new TableCell({ children: [new Paragraph("Thème")] }),
-        new TableCell({ children: [new Paragraph(r.theme || "—")] }),
+        new TableCell({ children: [new Paragraph("Actions de Grâce")] }),
+        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.actionsGrace || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.actionsGrace.dime || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.actionsGrace.social || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(v?.actionsGrace.reste || 0, sym))] }),
       ],
     }),
     new TableRow({
       children: [
-        new TableCell({ children: [new Paragraph("Total présence")] }),
-        new TableCell({ children: [new Paragraph(String(r.effectif?.total || 0))] }),
-      ],
-    }),
-    new TableRow({
-      children: [
-        new TableCell({ children: [new Paragraph("Total offrandes")] }),
-        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.total, sym))] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "TOTAL", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(r.offrandes?.total || 0, sym), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(v?.totalDime || 0, sym), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(v?.totalSocial || 0, sym), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(v?.reste || 0, sym), bold: true })] })] }),
       ],
     }),
   ];
+
+  // Table for DÉPENSES
+  const depRows = [
+    new TableRow({
+      children: [
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "N°", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Montant", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Motif", bold: true })] })] }),
+      ],
+    }),
+  ];
+  if (r.depenses?.length) {
+    r.depenses.forEach((d, i) => {
+      depRows.push(new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph(String(i + 1))] }),
+          new TableCell({ children: [new Paragraph(fmt(d.montant, sym))] }),
+          new TableCell({ children: [new Paragraph(d.motif)] }),
+        ],
+      }));
+    });
+    depRows.push(new TableRow({
+      children: [
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Total", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(r.totalDepenses || 0, sym), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph("")] }),
+      ],
+    }));
+    depRows.push(new TableRow({
+      children: [
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Reste final", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(r.soldeFinal || 0, sym), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph("")] }),
+      ],
+    }));
+  }
+
+  // Table for ACCUEIL DES NOUVEAUX
+  const nouveauxRows = [
+    new TableRow({
+      children: [
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Noms", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Téléphone", bold: true })] })] }),
+      ],
+    }),
+  ];
+  if (r.nouveaux?.length) {
+    r.nouveaux.forEach((n) => {
+      nouveauxRows.push(new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph(n.nom)] }),
+          new TableCell({ children: [new Paragraph(n.tel || "—")] }),
+        ],
+      }));
+    });
+  }
 
   const doc = new Document({
     sections: [
@@ -590,8 +739,17 @@ async function doExportDOCX(rapId: string) {
           new Paragraph({ children: [new TextRun({ text: "RAPPORT DE CULTE", bold: true, size: 48 })], alignment: AlignmentType.CENTER }),
           new Paragraph({ children: [new TextRun(ext?.nom || "Emerge in Christ")] }),
           new Paragraph({ children: [new TextRun(`Date: ${fmtD(r.date)}`)], alignment: AlignmentType.CENTER }),
-          new Paragraph({ children: [new TextRun({ text: "" })] }),
-          new Table({ rows: tableRows }),
+          new Paragraph({ children: [new TextRun({ text: "" }) ] }),
+          new Paragraph({ children: [new TextRun({ text: "RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS", bold: true }) ] }),
+          new Table({ rows: repartitionRows }),
+          new Paragraph({ children: [new TextRun({ text: "" }) ] }),
+          new Paragraph({ children: [new TextRun({ text: "DÉPENSES", bold: true }) ] }),
+          new Table({ rows: depRows }),
+          ...(r.nouveaux?.length ? [
+            new Paragraph({ children: [new TextRun({ text: "" }) ] }),
+            new Paragraph({ children: [new TextRun({ text: "ACCUEIL DES NOUVEAUX", bold: true }) ] }),
+            new Table({ rows: nouveauxRows }),
+          ] : []),
         ],
       },
     ],
