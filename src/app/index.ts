@@ -21,6 +21,7 @@ declare global {
     onDevChange: () => void;
     adminRapFilter: (sel: HTMLSelectElement, field: string) => void;
     showRapModal: (id: string) => void;
+    doExportHTML: (id: string) => void;
     doExportPDF: (id: string) => void;
     doExportDOCX: (id: string) => void;
     openRapForm: (rapId: string | null) => void;
@@ -49,6 +50,9 @@ declare global {
     exportData: () => void;
     importData: (input: HTMLInputElement) => void;
     resetData: () => void;
+    doExportBilan: () => void;
+    doExportBilanExt: (period: string) => void;
+    exportBilanToCSV: (extId: string, period: string, yr: number, month?: number, quarter?: number) => void;
   }
 }
 
@@ -332,8 +336,7 @@ function rapTableRow(r: Rapport): string {
     <td>
       <div class="flex gap-8">
         <button class="btn btn-secondary btn-sm btn-icon" onclick="showRapModal('${r.id}')" title="Voir">${icon("eye")}</button>
-        <button class="btn btn-gold btn-sm btn-icon" onclick="doExportPDF('${r.id}')" title="PDF">${icon("file")}</button>
-        <button class="btn btn-success btn-sm btn-icon" onclick="doExportDOCX('${r.id}')" title="DOCX">${icon("pen")}</button>
+        <button class="btn btn-blue btn-sm btn-icon" onclick="doExportHTML('${r.id}')" title="Imprimer / PDF">${icon("fileText")}</button>
       </div>
     </td>
   </tr>`;
@@ -343,64 +346,197 @@ function showRapModal(rapId: string) {
   const r = Store.getRap(rapId);
   if (!r) return;
   const ext = Store.getExt(r.extensionId);
-  const sym = ext?.symbole || "€";
+  const v = r.ventilation;
+  const socialPct = Store.getSet().socialPct || 10;
+  const logo = Store.getLogo();
   
+  // Build tables with proper formatting
+  const repartitionTable = `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-gray-300 px-3 py-2 text-left font-bold">Type de recette</th>
+          <th class="border border-gray-300 px-3 py-2 text-right font-bold">Montant (₺)</th>
+          <th class="border border-gray-300 px-3 py-2 text-right font-bold">Dîme 10 %</th>
+          <th class="border border-gray-300 px-3 py-2 text-right font-bold">Social (${socialPct}%)</th>
+          <th class="border border-gray-300 px-3 py-2 text-right font-bold">Reste</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="border border-gray-300 px-3 py-2">Offrandes ordinaires</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(r.offrandes?.ordinaires || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.ordinaires.dime || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.ordinaires.social || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.ordinaires.reste || 0)}</td>
+        </tr>
+        <tr>
+          <td class="border border-gray-300 px-3 py-2">Offrandes pour Orateur</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(r.offrandes?.orateur || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.orateur.dime || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.orateur.social || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.orateur.reste || 0)}</td>
+        </tr>
+        <tr>
+          <td class="border border-gray-300 px-3 py-2">Dîmes</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(r.offrandes?.dimes || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.dimes.dime || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.dimes.social || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.dimes.reste || 0)}</td>
+        </tr>
+        <tr>
+          <td class="border border-gray-300 px-3 py-2">Actions de Grâce</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(r.offrandes?.actionsGrace || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.dime || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.social || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.reste || 0)}</td>
+        </tr>
+        <tr class="bg-gray-100 font-bold">
+          <td class="border border-gray-300 px-3 py-2">TOTAL</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(r.offrandes?.total || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.totalDime || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.totalSocial || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(v?.reste || 0)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+  const depensesTable = r.depenses?.length ? `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-gray-300 px-3 py-2 text-center font-bold w-12">N°</th>
+          <th class="border border-gray-300 px-3 py-2 text-right font-bold">Montant (₺)</th>
+          <th class="border border-gray-300 px-3 py-2 text-left font-bold">Motif</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${r.depenses!.map((d, i) => `
+          <tr>
+            <td class="border border-gray-300 px-3 py-2 text-center">${i + 1}</td>
+            <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(d.montant)}</td>
+            <td class="border border-gray-300 px-3 py-2">${d.motif}</td>
+          </tr>
+        `).join("")}
+        <tr class="bg-gray-100 font-bold">
+          <td class="border border-gray-300 px-3 py-2">Total</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(r.totalDepenses || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2"></td>
+        </tr>
+        <tr class="bg-gray-100 font-bold">
+          <td class="border border-gray-300 px-3 py-2">Reste final</td>
+          <td class="border border-gray-300 px-3 py-2 text-right">${fmtTRY(r.soldeFinal || 0)}</td>
+          <td class="border border-gray-300 px-3 py-2"></td>
+        </tr>
+      </tbody>
+    </table>` : `
+    <p class="text-gray-500 italic">Aucune dépense</p>
+    <p class="font-bold mt-2">Reste final: ${fmtTRY(r.soldeFinal || 0)}</p>`;
+
+  const nouveauxTable = r.nouveaux?.length ? `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-gray-300 px-3 py-2 text-left font-bold">Noms</th>
+          <th class="border border-gray-300 px-3 py-2 text-left font-bold">Téléphone</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${r.nouveaux!.map(n => `
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">${n.nom}</td>
+            <td class="border border-gray-300 px-3 py-2">${n.tel || "—"}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>` : "";
+
+  const headerHtml = logo ? `
+    <div class="flex items-center gap-4 mb-6 pb-4 border-b border-gray-300">
+      <img src="${logo}" alt="Logo" class="h-16 w-auto object-contain" />
+      <div>
+        <h1 class="text-2xl font-bold uppercase tracking-wide">${ext?.nom || "Emerge in Christ"}</h1>
+        <p class="text-gray-600">Rapport de Culte - ${fmtD(r.date)}</p>
+      </div>
+    </div>
+  ` : `
+    <div class="text-center mb-6 pb-4 border-b border-gray-300">
+      <h1 class="text-2xl font-bold uppercase tracking-wide">${ext?.nom || "Emerge in Christ"}</h1>
+      <p class="text-gray-600">Rapport de Culte - ${fmtD(r.date)}</p>
+    </div>
+  `;
+
   openModal(`
     <div class="modal-header"><h2>Rapport du ${fmtD(r.date)}</h2><button class="modal-close" onclick="closeModal()">${icon("x")}</button></div>
-    <div class="modal-body">
-      <div class="grid-2 mb-12">
-        <div class="calc-box">
-          <div class="form-section-title">Culte</div>
-          <div class="calc-row"><span>Heure</span><span>${r.heureDebut || "—"} - ${r.heureFin || "—"}</span></div>
-          <div class="calc-row"><span>Modérateur</span><span>${r.moderateur || "—"}</span></div>
-          <div class="calc-row"><span>Prédicateur</span><span>${r.predicateur || "—"}</span></div>
-          <div class="calc-row"><span>Thème</span><span>${r.theme || "—"}</span></div>
-          <div class="calc-row"><span>Textes</span><span>${r.textes || "—"}</span></div>
-        </div>
-        <div class="calc-box">
-          <div class="form-section-title">Effectif</div>
-          <div class="calc-row"><span>Papas</span><span>${r.effectif?.papas || 0}</span></div>
-          <div class="calc-row"><span>Mamans</span><span>${r.effectif?.mamans || 0}</span></div>
-          <div class="calc-row"><span>Frères</span><span>${r.effectif?.freres || 0}</span></div>
-          <div class="calc-row"><span>Soeurs</span><span>${r.effectif?.soeurs || 0}</span></div>
-          <div class="calc-row"><span>Enfants</span><span>${r.effectif?.enfants || 0}</span></div>
-          <div class="calc-row total-row"><span>Total</span><span>${r.effectif?.total || 0}</span></div>
+    <div class="modal-body" style="max-width: 800px; margin: 0 auto;">
+      ${headerHtml}
+      
+      <!-- INFORMATIONS DU CULTE -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200">Informations du Culte</h3>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div><span class="font-semibold">Heure:</span> ${r.heureDebut || "—"} - ${r.heureFin || "—"}</div>
+          <div><span class="font-semibold">Modérateur:</span> ${r.moderateur || "—"}</div>
+          <div><span class="font-semibold">Prédicateur:</span> ${r.predicateur || "—"}</div>
+          <div><span class="font-semibold">Interprète:</span> ${r.interprete || "—"}</div>
+          <div><span class="font-semibold">Thème:</span> ${r.theme || "—"}</div>
+          <div><span class="font-semibold">Textes:</span> ${r.textes || "—"}</div>
         </div>
       </div>
-      <div class="grid-2 mb-12">
-        <div class="calc-box">
-          <div class="form-section-title">Offrandes (${sym})</div>
-          <div class="calc-row"><span>Offrandes ordinaires</span><span>${fmt(r.offrandes?.ordinaires, sym)}</span></div>
-          <div class="calc-row"><span>Offrande orateur</span><span>${fmt(r.offrandes?.orateur, sym)}</span></div>
-          <div class="calc-row"><span>Dîmes</span><span>${fmt(r.offrandes?.dimes, sym)}</span></div>
-          <div class="calc-row"><span>Actions de grâce</span><span>${fmt(r.offrandes?.actionsGrace, sym)}</span></div>
-          <div class="calc-row total-row"><span>Total</span><span>${fmt(r.offrandes?.total, sym)}</span></div>
+
+      <!-- EFFECTIF -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200">Effectif des Présents</h3>
+        <div class="grid grid-cols-5 gap-2 text-center text-sm bg-gray-50 p-3 rounded">
+          <div><div class="font-semibold">${r.effectif?.papas || 0}</div><div class="text-xs text-gray-500">Papas</div></div>
+          <div><div class="font-semibold">${r.effectif?.mamans || 0}</div><div class="text-xs text-gray-500">Mamans</div></div>
+          <div><div class="font-semibold">${r.effectif?.freres || 0}</div><div class="text-xs text-gray-500">Frères</div></div>
+          <div><div class="font-semibold">${r.effectif?.soeurs || 0}</div><div class="text-xs text-gray-500">Soeurs</div></div>
+          <div><div class="font-semibold">${r.effectif?.enfants || 0}</div><div class="text-xs text-gray-500">Enfants</div></div>
         </div>
-        <div class="calc-box">
-          <div class="form-section-title">VENTILATION (${sym})</div>
-          <div class="calc-row"><span>Total Dîmes</span><span>${fmt(r.ventilation?.totalDime, sym)}</span></div>
-          <div class="calc-row"><span>Total Prélèvement Social</span><span>${fmt(r.ventilation?.totalSocial, sym)}</span></div>
-          <div class="calc-row"><span>Reste disponible</span><span>${fmt(r.ventilation?.reste, sym)}</span></div>
-          <div class="calc-row"><span>Dépenses</span><span>${fmt(r.totalDepenses, sym)}</span></div>
-          <div class="calc-row total-row"><span>Solde final</span><span>${fmt(r.soldeFinal, sym)}</span></div>
+        <div class="text-center mt-2 font-bold">Total: ${r.effectif?.total || 0}</div>
+      </div>
+
+      <!-- RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200">Répartition des Recettes et Prélèvements</h3>
+        ${repartitionTable}
+      </div>
+
+      <!-- DÉPENSES -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200">Dépenses</h3>
+        ${depensesTable}
+      </div>
+
+      <!-- ACCUEIL DES NOUVEAUX -->
+      ${nouveauxTable ? `
+      <div class="mb-6">
+        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200">Accueil des Nouveaux</h3>
+        ${nouveauxTable}
+      </div>
+      ` : ""}
+
+      <!-- SIGNATURES -->
+      <div class="mt-8 pt-4 border-t border-gray-300">
+        <div class="grid grid-cols-3 gap-4 text-sm">
+          <div class="text-center">
+            <div class="border-b border-gray-400 mb-2 pb-4"></div>
+            <div class="font-semibold">Secrétaire</div>
+          </div>
+          <div class="text-center">
+            <div class="border-b border-gray-400 mb-2 pb-4"></div>
+            <div class="font-semibold">Trésorier</div>
+          </div>
+          <div class="text-center">
+            <div class="border-b border-gray-400 mb-2 pb-4"></div>
+            <div class="font-semibold">Pasteur</div>
+          </div>
         </div>
       </div>
-      ${r.depenses?.length ? `
-      <div class="form-section-title mb-8">Dépenses</div>
-      <div class="table-wrap mb-12">
-        <table><thead><tr><th>Motif</th><th>Montant</th></tr></thead>
-        <tbody>${r.depenses!.map(d => `<tr><td>${d.motif}</td><td>${fmt(d.montant, sym)}</td></tr>`).join("")}</tbody></table>
-      </div>` : ""}
-      ${r.nouveaux?.length ? `
-      <div class="form-section-title mb-8">ACCUEIL DES NOUVEAUX</div>
-      <div class="table-wrap mb-12">
-        <table><thead><tr><th>Nom</th><th>Téléphone</th></tr></thead>
-        <tbody>${r.nouveaux!.map(n => `<tr><td>${n.nom}</td><td>${n.tel || "—"}</td></tr>`).join("")}</tbody></table>
-      </div>` : ""}
     </div>
     <div class="modal-footer">
-      <button class="btn btn-gold" onclick="closeModal();doExportPDF('${r.id}')">${icon("file")} Exporter PDF</button>
-      <button class="btn btn-success" onclick="closeModal();doExportDOCX('${r.id}')">${icon("pen")} Exporter DOCX</button>
+      <button class="btn btn-blue" onclick="closeModal();doExportHTML('${r.id}')">${icon("fileText")} Imprimer / PDF</button>
     </div>
   `);
 }
@@ -483,7 +619,8 @@ function doExportPDF(rapId: string) {
   doc.setFontSize(10);
   doc.setFont("times", "bold");
   const colWidths = [60, 35, 35, 35, 35];
-  const cols = ["Type de recette", "Montant (₺)", "Dîme 10 %", "Social (%)", "Reste"];
+  const socialPct = Store.getSet().socialPct || 10;
+  const cols = ["Type de recette", "Montant (₺)", "Dîme 10 %", `Social (${socialPct}%)`, "Reste"];
   let x = marginLeft;
   cols.forEach((col, i) => {
     doc.rect(x, y - 4, colWidths[i], 8); // Cell border
@@ -495,7 +632,6 @@ function doExportPDF(rapId: string) {
   // Table rows
   doc.setFont("times", "normal");
   const v = r.ventilation;
-  const socialPct = Store.getSet().socialPct || 10;
   
   const rows = [
     ["Offrandes ordinaires", r.offrandes?.ordinaires || 0, v?.ordinaires.dime || 0, v?.ordinaires.social || 0, v?.ordinaires.reste || 0],
@@ -532,6 +668,9 @@ function doExportPDF(rapId: string) {
     x += colWidths[i + 1];
   });
   y += 15;
+
+  // Add new page for DÉPENSES section
+  doc.addPage();
 
   // SECTION: DÉPENSES - TABLE FORMAT
   doc.setFontSize(12);
@@ -647,6 +786,374 @@ function doExportPDF(rapId: string) {
 
   doc.save(`Rapport_${ext?.nom || "EIC"}_${r.date}.pdf`);
   toast("PDF exporté avec succès", "success");
+}
+
+function doExportHTML(rapId: string) {
+  const r = Store.getRap(rapId);
+  if (!r) return;
+  const ext = Store.getExt(r.extensionId);
+  const v = r.ventilation;
+  const socialPct = Store.getSet().socialPct || 10;
+  const logo = Store.getLogo();
+
+  const repartitionTable = `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-black px-3 py-2 text-left font-bold">Type de recette</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Dîme 10 %</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Social (${socialPct}%)</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Reste</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="border border-black px-3 py-2">Offrandes ordinaires</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.ordinaires || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.ordinaires.dime || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.ordinaires.social || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.ordinaires.reste || 0)}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Offrandes pour Orateur</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.orateur || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.orateur.dime || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.orateur.social || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.orateur.reste || 0)}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Dîmes</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.dimes || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.dimes.dime || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.dimes.social || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.dimes.reste || 0)}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Actions de Grâce</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.actionsGrace || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.dime || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.social || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.reste || 0)}</td>
+        </tr>
+        <tr class="bg-gray-200 font-bold">
+          <td class="border border-black px-3 py-2">TOTAL</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.total || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.totalDime || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.totalSocial || 0)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.reste || 0)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+  const depensesTable = r.depenses?.length ? `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-black px-3 py-2 text-center font-bold w-12">N°</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
+          <th class="border border-black px-3 py-2 text-left font-bold">Motif</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${r.depenses!.map((d, i) => `
+          <tr>
+            <td class="border border-black px-3 py-2 text-center">${i + 1}</td>
+            <td class="border border-black px-3 py-2 text-right">${fmtTRY(d.montant)}</td>
+            <td class="border border-black px-3 py-2">${d.motif}</td>
+          </tr>
+        `).join("")}
+        <tr class="bg-gray-200 font-bold">
+          <td class="border border-black px-3 py-2">Total</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.totalDepenses || 0)}</td>
+          <td class="border border-black px-3 py-2"></td>
+        </tr>
+        <tr class="bg-gray-200 font-bold">
+          <td class="border border-black px-3 py-2">Reste final</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.soldeFinal || 0)}</td>
+          <td class="border border-black px-3 py-2"></td>
+        </tr>
+      </tbody>
+    </table>` : `
+    <p class="text-gray-500 italic">Aucune dépense</p>
+    <p class="font-bold mt-2">Reste final: ${fmtTRY(r.soldeFinal || 0)}</p>`;
+
+  const nouveauxTable = r.nouveaux?.length ? `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-black px-3 py-2 text-left font-bold">Noms</th>
+          <th class="border border-black px-3 py-2 text-left font-bold">Téléphone</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${r.nouveaux!.map(n => `
+          <tr>
+            <td class="border border-black px-3 py-2">${n.nom}</td>
+            <td class="border border-black px-3 py-2">${n.tel || "—"}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>` : "";
+
+  const headerHtml = logo ? `
+    <div class="flex items-center gap-4 mb-6 pb-4 border-b-2 border-black print:flex">
+      <img id="print-header-logo" src="${logo}" alt="Logo" class="h-10 w-auto object-contain print:h-10" style="max-height:40mm;" />
+      <div>
+        <h1 class="text-2xl font-bold uppercase tracking-wide">${ext?.nom || "Emerge in Christ"}</h1>
+        <p class="text-gray-600">Rapport de Culte - ${fmtD(r.date)}</p>
+      </div>
+    </div>
+    <div id="no-logo-div" class="hidden">
+    </div>
+  ` : `
+    <div id="no-logo-div" class="text-center mb-6 pb-4 border-b-2 border-black">
+      <h1 class="text-2xl font-bold uppercase tracking-wide">${ext?.nom || "Emerge in Christ"}</h1>
+      <p class="text-gray-600">Rapport de Culte - ${fmtD(r.date)}</p>
+    </div>
+  `;
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rapport de Culte - ${ext?.nom || "EIC"} - ${r.date}</title>
+  <script src="https://cdn.tailwindcss.com"><\/script>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm;
+    }
+    @media print {
+      body { 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 16mm !important;
+      }
+      .no-print { display: none !important; }
+      .print\:page-break-before { page-break-before: always; }
+      .print\:hidden { display: none !important; }
+      .break-before-page { page-break-before: always; break-before: always; }
+      .break-after-avoid { break-after: avoid; page-break-after: avoid; }
+      .break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
+    }
+    body {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 16mm;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body class="bg-white text-gray-900 font-sans">
+  <!-- LOGO UPLOAD SECTION (visible on screen, hidden on print) -->
+  <div class="no-print mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg print:hidden">
+    <div class="flex flex-col sm:flex-row items-center gap-4">
+      <div class="flex-1">
+        <label class="block text-sm font-semibold text-blue-800 mb-2">Logo pour l'impression (optionnel)</label>
+        <div class="flex gap-2 flex-wrap">
+          <input type="file" id="logo-upload" accept="image/*,image/svg+xml" class="text-sm text-blue-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200" />
+          <input type="text" id="logo-url" placeholder="Ou coller une URL..." class="flex-1 min-w-48 px-3 py-2 border border-blue-300 rounded text-sm" />
+          <button onclick="applyLogo()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold">Appliquer</button>
+          <button onclick="saveLogoForFuture()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-semibold" title="Sauvegarder pour les prochaines impressions">💾 Sauvegarder</button>
+        </div>
+      </div>
+      <div id="logo-preview" class="hidden items-center gap-2">
+        <img id="preview-img" src="" alt="Aperçu" class="h-12 w-auto object-contain border border-blue-300 rounded" />
+        <button onclick="removeLogo()" class="ml-2 text-red-600 hover:text-red-800 text-sm">✕ Retirer</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center mb-6">
+    <h1 class="text-3xl font-bold uppercase tracking-wider border-b-4 border-black pb-2 inline-block">RAPPORT DE CULTE</h1>
+  </div>
+  
+  ${headerHtml}
+  
+  <!-- INFORMATIONS DU CULTE -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Informations du Culte</h3>
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div><span class="font-bold">Heure:</span> ${r.heureDebut || "—"} - ${r.heureFin || "—"}</div>
+      <div><span class="font-bold">Modérateur:</span> ${r.moderateur || "—"}</div>
+      <div><span class="font-bold">Prédicateur:</span> ${r.predicateur || "—"}</div>
+      <div><span class="font-bold">Interprète:</span> ${r.interprete || "—"}</div>
+      <div><span class="font-bold">Thème:</span> ${r.theme || "—"}</div>
+      <div><span class="font-bold">Textes:</span> ${r.textes || "—"}</div>
+    </div>
+  </div>
+
+  <!-- EFFECTIF -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Effectif des Présents</h3>
+    <div class="grid grid-cols-5 gap-2 text-center text-sm border border-black p-3">
+      <div><div class="font-bold text-lg">${r.effectif?.papas || 0}</div><div class="text-xs">Papas</div></div>
+      <div><div class="font-bold text-lg">${r.effectif?.mamans || 0}</div><div class="text-xs">Mamans</div></div>
+      <div><div class="font-bold text-lg">${r.effectif?.freres || 0}</div><div class="text-xs">Frères</div></div>
+      <div><div class="font-bold text-lg">${r.effectif?.soeurs || 0}</div><div class="text-xs">Sœurs</div></div>
+      <div><div class="font-bold text-lg">${r.effectif?.enfants || 0}</div><div class="text-xs">Enfants</div></div>
+    </div>
+    <div class="text-center mt-3 font-bold text-lg border border-black p-2 inline-block px-8">Total: ${r.effectif?.total || 0}</div>
+  </div>
+
+  <!-- RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Répartition des Recettes et Prélèvements</h3>
+    ${repartitionTable}
+  </div>
+
+  <!-- DÉPENSES (Nouvelle page à l'impression) -->
+  <div class="mb-6 break-before-page" style="break-before: page; page-break-before: always;">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black" style="break-after: avoid;">Dépenses</h3>
+    <div class="break-inside-avoid" style="page-break-inside: avoid; break-inside: avoid;">
+      ${depensesTable}
+    </div>
+  </div>
+
+  <!-- ACCUEIL DES NOUVEAUX -->
+  ${nouveauxTable ? `
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Accueil des Nouveaux</h3>
+    ${nouveauxTable}
+  </div>
+  ` : ""}
+
+  <!-- SIGNATURES -->
+  <div class="mt-12 pt-4 border-t-4 border-black">
+    <div class="grid grid-cols-3 gap-4 text-sm">
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Secrétaire</div>
+        <div class="text-xs">${r.signatures?.secretaire || ""}</div>
+      </div>
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Trésorier</div>
+        <div class="text-xs">${r.signatures?.tresorier || ""}</div>
+      </div>
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Pasteur</div>
+        <div class="text-xs">${r.signatures?.pasteur || ""}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOUTON IMPRESSION -->
+  <div class="no-print mt-8 text-center">
+    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg">
+      Imprimer / Enregistrer PDF
+    </button>
+    <p class="text-sm text-gray-500 mt-2">Utilisez "Enregistrer sous PDF" dans la boîte de dialogue d'impression</p>
+  </div>
+  <script>
+    // Initialize logo from localStorage (persisted from settings or previous saves)
+    let currentLogo = localStorage.getItem('eic_logo') || null;
+    
+    // Also check sessionStorage for temporary logo during this session
+    if (!currentLogo) {
+      currentLogo = sessionStorage.getItem('print_logo');
+    }
+
+    function applyLogo() {
+      const fileInput = document.getElementById('logo-upload');
+      const urlInput = document.getElementById('logo-url');
+      
+      if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          currentLogo = e.target.result;
+          // Persist to sessionStorage for this print session
+          sessionStorage.setItem('print_logo', currentLogo);
+          updateLogoDisplay();
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+      } else if (urlInput.value.trim()) {
+        currentLogo = urlInput.value.trim();
+        sessionStorage.setItem('print_logo', currentLogo);
+        updateLogoDisplay();
+      }
+    }
+
+    function updateLogoDisplay() {
+      const preview = document.getElementById('logo-preview');
+      const previewImg = document.getElementById('preview-img');
+      const headerLogo = document.getElementById('print-header-logo');
+      const noLogoDiv = document.getElementById('no-logo-div');
+      
+      if (currentLogo) {
+        if (preview) {
+          preview.classList.remove('hidden');
+          preview.classList.add('flex');
+          previewImg.src = currentLogo;
+        }
+        if (headerLogo) {
+          headerLogo.src = currentLogo;
+          headerLogo.parentElement.classList.remove('hidden');
+        }
+        if (noLogoDiv) {
+          noLogoDiv.classList.add('hidden');
+        }
+      }
+    }
+
+    function removeLogo() {
+      currentLogo = null;
+      sessionStorage.removeItem('print_logo');
+      // Note: We don't remove from localStorage here to preserve saved logo
+      document.getElementById('logo-preview').classList.add('hidden');
+      document.getElementById('logo-preview').classList.remove('flex');
+      document.getElementById('logo-upload').value = '';
+      document.getElementById('logo-url').value = '';
+      const headerLogo = document.getElementById('print-header-logo');
+      if (headerLogo) {
+        headerLogo.src = '';
+        headerLogo.parentElement.classList.add('hidden');
+      }
+      const noLogoDiv = document.getElementById('no-logo-div');
+      if (noLogoDiv) {
+        noLogoDiv.classList.remove('hidden');
+      }
+    }
+
+    function saveLogoForFuture() {
+      if (currentLogo) {
+        try {
+          localStorage.setItem('eic_logo', currentLogo);
+          alert('Logo sauvegardé ! Il sera automatiquement affiché lors de vos prochaines impressions.');
+        } catch (e) {
+          alert('Erreur lors de la sauvegarde du logo. L\'image est peut-être trop grande.');
+        }
+      } else {
+        alert('Veuillez d\'abord sélectionner un logo.');
+      }
+    }
+
+    // Run on page load to display existing logo
+    document.addEventListener('DOMContentLoaded', function() {
+      if (currentLogo) {
+        updateLogoDisplay();
+      }
+    });
+
+    window.applyLogo = applyLogo;
+    window.removeLogo = removeLogo;
+    window.saveLogoForFuture = saveLogoForFuture;
+  </script>
+</body>
+</html>`;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
+  toast("Fenêtre d'impression ouverte", "success");
 }
 
 async function doExportDOCX(rapId: string) {
@@ -808,13 +1315,444 @@ async function doExportDOCX(rapId: string) {
   toast("DOCX exporté avec succès", "success");
 }
 
+function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "annual", year: number, month?: number, quarter?: number) {
+  let raps = Store.getRaps(extId).filter(r => {
+    const d = new Date(r.date + "T00:00");
+    return d.getFullYear() === year;
+  });
+
+  if (period === "monthly" && month !== undefined) {
+    raps = raps.filter(r => new Date(r.date + "T00:00").getMonth() === month);
+  } else if (period === "quarterly" && quarter !== undefined) {
+    const qStart = quarter * 3;
+    const qEnd = qStart + 2;
+    raps = raps.filter(r => {
+      const m = new Date(r.date + "T00:00").getMonth();
+      return m >= qStart && m <= qEnd;
+    });
+  }
+
+  const data = {
+    ordinaires: 0,
+    orateur: 0,
+    dimes: 0,
+    actionsGrace: 0,
+    totalRecettes: 0,
+    dimeTotal: 0,
+    socialTotal: 0,
+    resteTotal: 0,
+    totalDepenses: 0,
+    soldeFinal: 0,
+    cultes: raps.length,
+    presence: 0,
+    nouveaux: 0,
+  };
+
+  raps.forEach(r => {
+    data.ordinaires += r.offrandes?.ordinaires || 0;
+    data.orateur += r.offrandes?.orateur || 0;
+    data.dimes += r.offrandes?.dimes || 0;
+    data.actionsGrace += r.offrandes?.actionsGrace || 0;
+    data.totalRecettes += r.offrandes?.total || 0;
+    data.dimeTotal += r.ventilation?.totalDime || 0;
+    data.socialTotal += r.ventilation?.totalSocial || 0;
+    data.resteTotal += r.ventilation?.reste || 0;
+    data.totalDepenses += r.totalDepenses || 0;
+    data.soldeFinal += r.soldeFinal || 0;
+    data.presence += r.effectif?.total || 0;
+    data.nouveaux += r.nouveaux?.length || 0;
+  });
+
+  return data;
+}
+
+function pgAdminBilansFinancier() {
+  setActive("/admin/bilans/financier");
+  const exts = Store.getExts();
+  const params = curParams();
+  const yr = params.year ? parseInt(params.year) : new Date().getFullYear();
+  const period = (params.period as "monthly" | "quarterly" | "annual") || "annual";
+  const month = params.month ? parseInt(params.month) : undefined;
+  const quarter = params.quarter ? parseInt(params.quarter) : undefined;
+  const extId = params.ext || "";
+
+  const socialPct = Store.getSet().socialPct || 10;
+
+  let periodLabel = `${yr}`;
+  if (period === "monthly" && month !== undefined) {
+    periodLabel = `${mName(month)} ${yr}`;
+  } else if (period === "quarterly" && quarter !== undefined) {
+    const qLabels = ["Q1 (Jan-Mar)", "Q2 (Apr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dec)"];
+    periodLabel = `${qLabels[quarter]} ${yr}`;
+  }
+
+  setTopbar("Bilans Financiers", periodLabel, "Admin");
+
+  const extIdToUse = extId || null;
+  const data = getBilanData(extIdToUse, period, yr, month, quarter);
+
+  const selectedExt = extId ? exts.find(e => e.id === extId) : null;
+
+  render(`
+    <div class="page-header">
+      <div><h1>Bilans Financiers</h1><p>${periodLabel} ${selectedExt ? `- ${selectedExt.nom}` : "- Toutes extensions"}</p></div>
+      <div class="flex gap-8">
+        <button class="btn btn-blue" onclick="window.doExportBilan()">${icon("fileText")} Imprimer / PDF</button>
+        <button class="btn btn-secondary" onclick="window.exportBilanToCSV('${extId || ''}', '${period}', ${yr}, ${month || 'undefined'}, ${quarter || 'undefined'})">${icon("download")} CSV</button>
+        <button class="btn btn-secondary" onclick="navTo('/print/summary', {period:'monthly',year:'${yr}',ext:'${extId || ''}'})">${icon("download")} Mensuel</button>
+        <button class="btn btn-secondary" onclick="navTo('/print/summary', {period:'quarterly',year:'${yr}',ext:'${extId || ''}'})">${icon("download")} Trimestriel</button>
+        <button class="btn btn-secondary" onclick="navTo('/print/summary', {period:'annual',year:'${yr}',ext:'${extId || ''}'})">${icon("download")} Annuel</button>
+      </div>
+    </div>
+
+    <div class="filter-bar mb-12">
+      <select onchange="navTo('/admin/bilans/financier', {year:this.value,period:'${period}',ext:'${extId}',month:'${month || ''}',quarter:'${quarter || ''}'})">
+        ${[2026,2025,2024,2023,2022].map(y => `<option value="${y}"${yr === y ? " selected" : ""}>${y}</option>`).join("")}
+      </select>
+      <select onchange="navTo('/admin/bilans/financier', {year:'${yr}',period:this.value,ext:'${extId}'})">
+        <option value="annual"${period === "annual" ? " selected" : ""}>Annuel</option>
+        <option value="quarterly"${period === "quarterly" ? " selected" : ""}>Trimestriel</option>
+        <option value="monthly"${period === "monthly" ? " selected" : ""}>Mensuel</option>
+      </select>
+      ${period === "quarterly" ? `
+      <select onchange="navTo('/admin/bilans/financier', {year:'${yr}',period:'quarterly',ext:'${extId}',quarter:this.value})">
+        <option value="">-- Trimestre --</option>
+        ${[0,1,2,3].map(q => `<option value="${q}"${quarter === q ? " selected" : ""}>Q${q+1}</option>`).join("")}
+      </select>
+      ` : ""}
+      ${period === "monthly" ? `
+      <select onchange="navTo('/admin/bilans/financier', {year:'${yr}',period:'monthly',ext:'${extId}',month:this.value})">
+        <option value="">-- Mois --</option>
+        ${Array.from({length:12},(_,i)=>`<option value="${i}"${month === i ? " selected" : ""}>${mName(i)}</option>`).join("")}
+      </select>
+      ` : ""}
+      <select onchange="navTo('/admin/bilans/financier', {year:'${yr}',period:'${period}',ext:this.value,month:'${month || ''}',quarter:'${quarter || ''}'})">
+        <option value="">Toutes les extensions</option>
+        ${exts.map(e => `<option value="${e.id}"${extId === e.id ? " selected" : ""}>${e.nom}</option>`).join("")}
+      </select>
+    </div>
+
+    <div class="grid-4 mb-20">
+      <div class="card">
+        <div class="form-section-title mb-8">Cultes</div>
+        <div class="text-4xl font-bold text-purple-600">${data.cultes}</div>
+      </div>
+      <div class="card">
+        <div class="form-section-title mb-8">Présence totale</div>
+        <div class="text-4xl font-bold text-blue-600">${data.presence}</div>
+      </div>
+      <div class="card">
+        <div class="form-section-title mb-8">Total Offrandes</div>
+        <div class="text-4xl font-bold text-green-600">${fmtTRY(data.totalRecettes)}</div>
+      </div>
+      <div class="card">
+        <div class="form-section-title mb-8">Solde Final</div>
+        <div class="text-4xl font-bold ${data.soldeFinal >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtTRY(data.soldeFinal)}</div>
+      </div>
+    </div>
+
+    <div class="card mb-12">
+      <div class="form-section-title mb-12">RÉPARTITION DES RECETTES</div>
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Type de recette</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Montant (₺)</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Dîme 10%</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Social (${socialPct}%)</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Reste</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Offrandes ordinaires</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.ordinaires)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.ordinaires * 0.1)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.ordinaires * (socialPct/100))}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.ordinaires * (1 - 0.1 - socialPct/100))}</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Offrandes pour Orateur</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.orateur)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">₺ 0,00</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">₺ 0,00</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.orateur)}</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Dîmes</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.dimes)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.dimes * 0.1)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.dimes * (socialPct/100))}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.dimes * (1 - 0.1 - socialPct/100))}</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Actions de Grâce</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.actionsGrace)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.actionsGrace * 0.1)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.actionsGrace * (socialPct/100))}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
+          </tr>
+          <tr class="bg-gray-200 font-bold">
+            <td class="border border-gray-300 px-4 py-3">TOTAL</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.totalRecettes)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.dimeTotal)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.socialTotal)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.resteTotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid-2 gap-12">
+      <div class="card">
+        <div class="form-section-title mb-12">RÉSUMÉ FINANCIER</div>
+        <div class="calc-box">
+          <div class="calc-row"><span>Total Recettes</span><span>${fmtTRY(data.totalRecettes)}</span></div>
+          <div class="calc-row"><span>- Prélèvement Dîme (10%)</span><span class="text-red-600">${fmtTRY(data.dimeTotal)}</span></div>
+          <div class="calc-row"><span>- Prélèvement Social (${socialPct}%)</span><span class="text-red-600">${fmtTRY(data.socialTotal)}</span></div>
+          <div class="calc-row total-row"><span>= Montant Disponible</span><span>${fmtTRY(data.resteTotal)}</span></div>
+          <div class="calc-row"><span>- Total Dépenses</span><span class="text-red-600">${fmtTRY(data.totalDepenses)}</span></div>
+          <div class="calc-row total-row"><span>= Solde Final</span><span class="${data.soldeFinal >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtTRY(data.soldeFinal)}</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="form-section-title mb-12">AUTRES STATISTIQUES</div>
+        <div class="calc-box">
+          <div class="calc-row"><span>Nombre de cultes</span><span>${data.cultes}</span></div>
+          <div class="calc-row"><span>Présence totale</span><span>${data.presence}</span></div>
+          <div class="calc-row"><span>Présence moyenne</span><span>${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</span></div>
+          <div class="calc-row"><span>Nouveaux convertis</span><span>${data.nouveaux}</span></div>
+          <div class="calc-row"><span>Moyenne offrandes/culte</span><span>${fmtTRY(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</span></div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  // Store current bilan params for export
+  (window as any)._bilanParams = { extId: extIdToUse, period, yr, month, quarter, periodLabel, socialPct };
+}
+
+function doExportBilanHTML() {
+  // Check for URL params first (when called via direct navigation)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlPeriod = urlParams.get('period') as "monthly" | "quarterly" | "annual" | null;
+  const urlYear = urlParams.get('year');
+  const urlExt = urlParams.get('ext');
+  
+  // Use URL params if available, otherwise fall back to stored params
+  let params;
+  if (urlPeriod) {
+    const yr = urlYear ? parseInt(urlYear) : new Date().getFullYear();
+    const period = urlPeriod;
+    const extId = urlExt || null;
+    const socialPct = Store.getSet().socialPct || 10;
+    let periodLabel = `${yr}`;
+    let month: number | undefined;
+    let quarter: number | undefined;
+    
+    // For monthly/quarterly, we need default values
+    if (period === "monthly") {
+      month = new Date().getMonth();
+      periodLabel = `${mName(month)} ${yr}`;
+    } else if (period === "quarterly") {
+      quarter = Math.floor(new Date().getMonth() / 3);
+      const qLabels = ["Q1 (Jan-Mar)", "Q2 (Apr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dec)"];
+      periodLabel = `${qLabels[quarter]} ${yr}`;
+    }
+    
+    params = { extId, period, yr, month, quarter, periodLabel, socialPct };
+  } else {
+    params = (window as any)._bilanParams || { extId: null, period: "annual", yr: new Date().getFullYear(), periodLabel: String(new Date().getFullYear()), socialPct: 10 };
+  }
+  
+  const { extId, period, yr, month, quarter, periodLabel, socialPct } = params;
+  const exts = Store.getExts();
+  const ext = extId ? exts.find(e => e.id === extId) : null;
+  const logo = Store.getLogo();
+  const cfg = Store.getSet();
+
+  const data = getBilanData(extId, period, yr, month, quarter);
+
+  const headerHtml = logo ? `
+    <div class="flex items-center gap-4 mb-6 pb-4 border-b-2 border-black">
+      <img src="${logo}" alt="Logo" class="h-12 w-auto object-contain" style="max-height:40mm;" />
+      <div>
+        <h1 class="text-2xl font-bold uppercase">${cfg.nom || "Emerge in Christ"}</h1>
+        <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
+      </div>
+    </div>
+  ` : `
+    <div class="text-center mb-6 pb-4 border-b-2 border-black">
+      <h1 class="text-2xl font-bold uppercase">${cfg.nom || "Emerge in Christ"}</h1>
+      <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
+    </div>
+  `;
+
+  const repartitionTable = `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-black px-3 py-2 text-left font-bold">Type de recette</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Dîme 10 %</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Social (${socialPct}%)</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Reste</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="border border-black px-3 py-2">Offrandes ordinaires</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * 0.1)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (socialPct/100))}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Offrandes pour Orateur</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
+          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
+          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Dîmes</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * 0.1)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (socialPct/100))}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Actions de Grâce</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * 0.1)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (socialPct/100))}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr class="bg-gray-200 font-bold">
+          <td class="border border-black px-3 py-2">TOTAL</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.totalRecettes)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimeTotal)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.socialTotal)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.resteTotal)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bilan Financier - ${periodLabel}</title>
+  <script src="https://cdn.tailwindcss.com"><\/script>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; width: 100% !important; margin: 0 !important; padding: 16mm !important; }
+      .no-print { display: none !important; }
+    }
+    body { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 16mm; box-sizing: border-box; }
+  </style>
+</head>
+<body class="bg-white text-gray-900 font-sans">
+  <div class="no-print mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg print:hidden">
+    <p class="text-sm text-blue-800"><strong>Conseil :</strong> Utilisez "Enregistrer sous PDF" dans la boîte de dialogue d'impression pour sauvegarder ce bilan.</p>
+  </div>
+
+  <div class="text-center mb-6">
+    <h1 class="text-3xl font-bold uppercase tracking-wider border-b-4 border-black pb-2 inline-block">BILAN FINANCIER</h1>
+  </div>
+
+  ${headerHtml}
+
+  <!-- STATISTIQUES GLOBALES -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Statistiques Globales</h3>
+    <div class="grid grid-cols-4 gap-4 text-center">
+      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.cultes}</div><div class="text-sm">Cultes</div></div>
+      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.presence}</div><div class="text-sm">Présence</div></div>
+      <div class="border border-black p-3"><div class="text-2xl font-bold text-green-700">${fmtTRY(data.totalRecettes)}</div><div class="text-sm">Total Recettes</div></div>
+      <div class="border border-black p-3"><div class="text-2xl font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</div><div class="text-sm">Solde Final</div></div>
+    </div>
+  </div>
+
+  <!-- RÉPARTITION DES RECETTES -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Répartition des Recettes et Prélèvements</h3>
+    ${repartitionTable}
+  </div>
+
+  <!-- RÉSUMÉ FINANCIER -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Résumé Financier</h3>
+    <table class="w-full border-collapse text-sm">
+      <tbody>
+        <tr class="bg-gray-100"><td class="border border-black px-3 py-2 font-bold">Total Recettes</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.totalRecettes)}</td></tr>
+        <tr><td class="border border-black px-3 py-2">- Prélèvement Dîme (10%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.dimeTotal)}</td></tr>
+        <tr><td class="border border-black px-3 py-2">- Prélèvement Social (${socialPct}%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.socialTotal)}</td></tr>
+        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Montant Disponible</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.resteTotal)}</td></tr>
+        <tr><td class="border border-black px-3 py-2">- Total Dépenses</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.totalDepenses)}</td></tr>
+        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Solde Final</td><td class="border border-black px-3 py-2 text-right font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- AUTRES STATISTIQUES -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Autres Statistiques</h3>
+    <div class="grid grid-cols-3 gap-4 text-sm">
+      <div><span class="font-bold">Nombre de cultes :</span> ${data.cultes}</div>
+      <div><span class="font-bold">Présence totale :</span> ${data.presence}</div>
+      <div><span class="font-bold">Présence moyenne :</span> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
+      <div><span class="font-bold">Nouveaux convertis :</span> ${data.nouveaux}</div>
+      <div><span class="font-bold">Moyenne offrandes/culte :</span> ${fmtTRY(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
+    </div>
+  </div>
+
+  <!-- SIGNATURES -->
+  <div class="mt-12 pt-4 border-t-4 border-black">
+    <div class="grid grid-cols-3 gap-4 text-sm">
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Secrétaire</div>
+      </div>
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Trésorier</div>
+      </div>
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Pasteur</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-print mt-8 text-center">
+    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg">
+      Imprimer / Enregistrer PDF
+    </button>
+  </div>
+</body>
+</html>`;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
+  toast("Fenêtre d'impression ouverte", "success");
+}
+
 function registerAdminRoutes() {
   regRoute("/admin/dashboard", pgAdminDash);
   regRoute("/admin/extensions", pgAdminExts);
   regRoute("/admin/rapports", pgAdminRaps);
   regRoute("/admin/bilans", pgAdminBilans);
+  regRoute("/admin/bilans/financier", pgAdminBilansFinancier);
+  regRoute("/print/summary", doExportBilanHTML);
   regRoute("/admin/convertis", pgAdminConvertis);
   regRoute("/admin/settings", pgAdminSettings);
+  (window as any).doExportBilan = doExportBilanHTML;
   regRoute("*", () => navTo("/admin/dashboard"));
   window.addEventListener("hashchange", () => setActive(curPath()));
 }
@@ -1317,13 +2255,17 @@ function renderStepContent(r: Rapport, sym: string): string {
       const ag = r.offrandes?.actionsGrace || 0;
       const tot = ord + ora + dim + ag;
       // Calculate ventilation breakdown
-      const ordDime = 0, ordSocial = +(ord * socialPct).toFixed(2), ordReste = +(ord - ord * socialPct).toFixed(2);
-      const oraDime = 0, oraSocial = +(ora * socialPct).toFixed(2), oraReste = +(ora - ora * socialPct).toFixed(2);
+      // Rules: 
+      // - Offrandes pour Orateur: NO deductions (dime=0, social=0, reste=full)
+      // - Dîme 10%: applies to ordinaires, dimes, actionsGrace (NOT orateur)
+      // - Social %: applies to all except orateur
+      const ordDime = +(ord * 0.1).toFixed(2), ordSocial = +(ord * socialPct).toFixed(2), ordReste = +(ord - ord * 0.1 - ord * socialPct).toFixed(2);
+      const oraDime = 0, oraSocial = 0, oraReste = ora;
       const dimDime = +(dim * 0.1).toFixed(2), dimSocial = +(dim * socialPct).toFixed(2), dimReste = +(dim - dim * 0.1 - dim * socialPct).toFixed(2);
-      const agDime = 0, agSocial = +(ag * socialPct).toFixed(2), agReste = +(ag - ag * socialPct).toFixed(2);
-      const totalDime = dimDime;
-      const totalSocial = ordSocial + oraSocial + dimSocial + agSocial;
-      const totalReste = ordReste + oraReste + dimReste + agReste;
+      const agDime = +(ag * 0.1).toFixed(2), agSocial = +(ag * socialPct).toFixed(2), agReste = +(ag - ag * 0.1 - ag * socialPct).toFixed(2);
+      const totalDime = +(ordDime + dimDime + agDime).toFixed(2);
+      const totalSocial = +(ordSocial + dimSocial + agSocial).toFixed(2);
+      const totalReste = +(ordReste + oraReste + dimReste + agReste).toFixed(2);
       return `
         <div class="form-section-title">Offrandes (${sym})</div>
         <div class="form-row cols-2">
@@ -1479,25 +2421,25 @@ function saveStep2() {
   const socialPct = (Store.getSet().socialPct ?? 10) / 100;
 
   // Calculate detailed breakdown
-  const ordDime = 0;
+  const ordDime = +(ord * 0.1).toFixed(2);
   const ordSocial = +(ord * socialPct).toFixed(2);
-  const ordReste = +(ord - ordSocial).toFixed(2);
+  const ordReste = +(ord - ordDime - ordSocial).toFixed(2);
 
   const oraDime = 0;
-  const oraSocial = +(ora * socialPct).toFixed(2);
-  const oraReste = +(ora - oraSocial).toFixed(2);
+  const oraSocial = 0;
+  const oraReste = ora;
 
   const dimDime = +(dim * 0.1).toFixed(2);
   const dimSocial = +(dim * socialPct).toFixed(2);
   const dimReste = +(dim - dimDime - dimSocial).toFixed(2);
 
-  const agDime = 0;
+  const agDime = +(ag * 0.1).toFixed(2);
   const agSocial = +(ag * socialPct).toFixed(2);
-  const agReste = +(ag - agSocial).toFixed(2);
+  const agReste = +(ag - agDime - agSocial).toFixed(2);
 
-  const totalDime = dimDime;
-  const totalSocial = ordSocial + oraSocial + dimSocial + agSocial;
-  const totalReste = ordReste + oraReste + dimReste + agReste;
+  const totalDime = +(ord * 0.1 + dimDime + ag * 0.1).toFixed(2);
+  const totalSocial = +(ordSocial + dimSocial + agSocial).toFixed(2);
+  const totalReste = +(ordReste + oraReste + dimReste + agReste).toFixed(2);
 
   rapFormData.offrandes = { ordinaires: ord, orateur: ora, dimes: dim, actionsGrace: ag, total };
   rapFormData.ventilation = {
@@ -1693,23 +2635,94 @@ function pgExtBilans(extId: string) {
   const st = Store.stats(extId);
   const yr = new Date().getFullYear();
   const mo = Store.monthly(extId, yr);
+  const socialPct = Store.getSet().socialPct || 10;
 
   setTopbar("Bilans", ext?.nom || "", "");
 
+  const currentYearData = getBilanData(extId, "annual", yr, undefined, undefined);
+
   render(`
     <div class="page-header">
-      <div><h1>Bilans</h1><p>${yr}</p></div>
-    </div>
-    <div class="grid-3 mb-20">
-      <div class="card" style="border-left:3px solid ${ext?.couleur}">
-        <div class="calc-box">
-          <div class="calc-row"><span>Cultes</span><span>${st.cultes}</span></div>
-          <div class="calc-row"><span>Présence moy.</span><span>${st.presence}</span></div>
-          <div class="calc-row"><span>Offrandes</span><span>${fmt(st.offrandes, ext?.symbole || "€")}</span></div>
-          <div class="calc-row total-row"><span>Convertis</span><span>${st.nouveaux}</span></div>
-        </div>
+      <div><h1>Bilans Financiers</h1><p>${ext?.nom || ""} - ${yr}</p></div>
+      <div class="flex gap-8">
+        <button class="btn btn-blue" onclick="window.doExportBilanExt('monthly')">${icon("fileText")} Mensuel</button>
+        <button class="btn btn-blue" onclick="window.doExportBilanExt('quarterly')">${icon("fileText")} Trimestriel</button>
+        <button class="btn btn-blue" onclick="window.doExportBilanExt('annual')">${icon("fileText")} Annuel</button>
+        <button class="btn btn-secondary" onclick="window.exportBilanToCSV('${extId}', 'annual', ${yr})">${icon("download")} CSV</button>
       </div>
     </div>
+
+    <div class="grid-4 mb-20">
+      <div class="card" style="border-left:3px solid ${ext?.couleur}">
+        <div class="form-section-title mb-8">Cultes</div>
+        <div class="text-4xl font-bold text-purple-600">${currentYearData.cultes}</div>
+      </div>
+      <div class="card" style="border-left:3px solid ${ext?.couleur}">
+        <div class="form-section-title mb-8">Présence totale</div>
+        <div class="text-4xl font-bold text-blue-600">${currentYearData.presence}</div>
+      </div>
+      <div class="card" style="border-left:3px solid ${ext?.couleur}">
+        <div class="form-section-title mb-8">Total Offrandes</div>
+        <div class="text-4xl font-bold text-green-600">${fmtTRY(currentYearData.totalRecettes)}</div>
+      </div>
+      <div class="card" style="border-left:3px solid ${ext?.couleur}">
+        <div class="form-section-title mb-8">Solde Final</div>
+        <div class="text-4xl font-bold ${currentYearData.soldeFinal >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtTRY(currentYearData.soldeFinal)}</div>
+      </div>
+    </div>
+
+    <div class="card mb-12">
+      <div class="form-section-title mb-12">RÉPARTITION DES RECETTES (${yr})</div>
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Type de recette</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Montant (₺)</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Dîme 10%</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Social (${socialPct}%)</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Reste</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Offrandes ordinaires</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.ordinaires)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.ordinaires * 0.1)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.ordinaires * (socialPct/100))}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.ordinaires * (1 - 0.1 - socialPct/100))}</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Offrandes pour Orateur</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.orateur)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">₺ 0,00</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">₺ 0,00</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.orateur)}</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Dîmes</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.dimes)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.dimes * 0.1)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.dimes * (socialPct/100))}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.dimes * (1 - 0.1 - socialPct/100))}</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">Actions de Grâce</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.actionsGrace)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.actionsGrace * 0.1)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.actionsGrace * (socialPct/100))}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
+          </tr>
+          <tr class="bg-gray-200 font-bold">
+            <td class="border border-gray-300 px-4 py-3">TOTAL</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.totalRecettes)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.dimeTotal)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.socialTotal)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.resteTotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class="card mb-20">
       <div class="form-section-title mb-12">Présence mensuelle (${yr})</div>
       <div class="chart-wrap" style="height:200px"><canvas id="chM"></canvas></div>
@@ -1736,7 +2749,252 @@ function pgExtBilans(extId: string) {
   `);
 
   chartBar("chM", mo.map((m) => m.lbl), mo.map((m) => m.presence), "Présence", "rgba(139,92,246,.7)");
+
+  (window as any)._extBilanParams = { extId, socialPct };
 }
+
+function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
+  const ses = Auth.ses();
+  if (!ses || ses.role !== "extension") return;
+  const extId = ses.extId;
+  const params = (window as any)._extBilanParams || { extId, socialPct: 10 };
+  const { socialPct } = params;
+  const ext = Store.getExt(extId);
+  const logo = Store.getLogo();
+  const cfg = Store.getSet();
+  const yr = new Date().getFullYear();
+
+  let periodLabel = `${yr}`;
+  let data;
+
+  if (period === "monthly") {
+    const currentMonth = new Date().getMonth();
+    data = getBilanData(extId, "monthly", yr, currentMonth, undefined);
+    periodLabel = `${mName(currentMonth)} ${yr}`;
+  } else if (period === "quarterly") {
+    const currentQuarter = Math.floor(new Date().getMonth() / 3);
+    data = getBilanData(extId, "quarterly", yr, undefined, currentQuarter);
+    const qLabels = ["Q1 (Jan-Mar)", "Q2 (Apr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dec)"];
+    periodLabel = `${qLabels[currentQuarter]} ${yr}`;
+  } else {
+    data = getBilanData(extId, "annual", yr, undefined, undefined);
+  }
+
+  const headerHtml = logo ? `
+    <div class="flex items-center gap-4 mb-6 pb-4 border-b-2 border-black">
+      <img src="${logo}" alt="Logo" class="h-12 w-auto object-contain" style="max-height:40mm;" />
+      <div>
+        <h1 class="text-2xl font-bold uppercase">${ext?.nom || "Emerge in Christ"}</h1>
+        <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
+      </div>
+    </div>
+  ` : `
+    <div class="text-center mb-6 pb-4 border-b-2 border-black">
+      <h1 class="text-2xl font-bold uppercase">${ext?.nom || "Emerge in Christ"}</h1>
+      <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
+    </div>
+  `;
+
+  const repartitionTable = `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-black px-3 py-2 text-left font-bold">Type de recette</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Dîme 10 %</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Social (${socialPct}%)</th>
+          <th class="border border-black px-3 py-2 text-right font-bold">Reste</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="border border-black px-3 py-2">Offrandes ordinaires</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * 0.1)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (socialPct/100))}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Offrandes pour Orateur</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
+          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
+          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Dîmes</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * 0.1)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (socialPct/100))}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td class="border border-black px-3 py-2">Actions de Grâce</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * 0.1)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (socialPct/100))}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr class="bg-gray-200 font-bold">
+          <td class="border border-black px-3 py-2">TOTAL</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.totalRecettes)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimeTotal)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.socialTotal)}</td>
+          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.resteTotal)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bilan Financier - ${ext?.nom || "EIC"} - ${periodLabel}</title>
+  <script src="https://cdn.tailwindcss.com"><\/script>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; width: 100% !important; margin: 0 !important; padding: 16mm !important; }
+      .no-print { display: none !important; }
+    }
+    body { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 16mm; box-sizing: border-box; }
+  </style>
+</head>
+<body class="bg-white text-gray-900 font-sans">
+  <div class="no-print mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg print:hidden">
+    <p class="text-sm text-blue-800"><strong>Conseil :</strong> Utilisez "Enregistrer sous PDF" dans la boîte de dialogue d'impression pour sauvegarder ce bilan.</p>
+  </div>
+
+  <div class="text-center mb-6">
+    <h1 class="text-3xl font-bold uppercase tracking-wider border-b-4 border-black pb-2 inline-block">BILAN FINANCIER</h1>
+  </div>
+
+  ${headerHtml}
+
+  <!-- STATISTIQUES GLOBALES -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Statistiques Globales</h3>
+    <div class="grid grid-cols-4 gap-4 text-center">
+      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.cultes}</div><div class="text-sm">Cultes</div></div>
+      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.presence}</div><div class="text-sm">Présence</div></div>
+      <div class="border border-black p-3"><div class="text-2xl font-bold text-green-700">${fmtTRY(data.totalRecettes)}</div><div class="text-sm">Total Recettes</div></div>
+      <div class="border border-black p-3"><div class="text-2xl font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</div><div class="text-sm">Solde Final</div></div>
+    </div>
+  </div>
+
+  <!-- RÉPARTITION DES RECETTES -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Répartition des Recettes et Prélèvements</h3>
+    ${repartitionTable}
+  </div>
+
+  <!-- RÉSUMÉ FINANCIER -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Résumé Financier</h3>
+    <table class="w-full border-collapse text-sm">
+      <tbody>
+        <tr class="bg-gray-100"><td class="border border-black px-3 py-2 font-bold">Total Recettes</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.totalRecettes)}</td></tr>
+        <tr><td class="border border-black px-3 py-2">- Prélèvement Dîme (10%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.dimeTotal)}</td></tr>
+        <tr><td class="border border-black px-3 py-2">- Prélèvement Social (${socialPct}%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.socialTotal)}</td></tr>
+        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Montant Disponible</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.resteTotal)}</td></tr>
+        <tr><td class="border border-black px-3 py-2">- Total Dépenses</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.totalDepenses)}</td></tr>
+        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Solde Final</td><td class="border border-black px-3 py-2 text-right font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- AUTRES STATISTIQUES -->
+  <div class="mb-6">
+    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Autres Statistiques</h3>
+    <div class="grid grid-cols-3 gap-4 text-sm">
+      <div><span class="font-bold">Nombre de cultes :</span> ${data.cultes}</div>
+      <div><span class="font-bold">Présence totale :</span> ${data.presence}</div>
+      <div><span class="font-bold">Présence moyenne :</span> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
+      <div><span class="font-bold">Nouveaux convertis :</span> ${data.nouveaux}</div>
+      <div><span class="font-bold">Moyenne offrandes/culte :</span> ${fmtTRY(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
+    </div>
+  </div>
+
+  <!-- SIGNATURES -->
+  <div class="mt-12 pt-4 border-t-4 border-black">
+    <div class="grid grid-cols-3 gap-4 text-sm">
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Secrétaire</div>
+      </div>
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Trésorier</div>
+      </div>
+      <div class="text-center">
+        <div class="border-b-2 border-black mb-2 pb-8"></div>
+        <div class="font-bold">Pasteur</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-print mt-8 text-center">
+    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg">
+      Imprimer / Enregistrer PDF
+    </button>
+  </div>
+</body>
+</html>`;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
+  toast("Fenêtre d'impression ouverte", "success");
+}
+
+(window as any).doExportBilanExt = doExportBilanExtHTML;
+
+function exportBilanToCSV(extId: string | null, period: "monthly" | "quarterly" | "annual", yr: number, month?: number, quarter?: number) {
+  const data = getBilanData(extId, period, yr, month, quarter);
+  const exts = Store.getExts();
+  const ext = extId ? exts.find(e => e.id === extId) : null;
+  const socialPct = Store.getSet().socialPct || 10;
+  
+  let periodLabel = `${yr}`;
+  if (period === "monthly" && month !== undefined) {
+    periodLabel = `${mName(month)} ${yr}`;
+  } else if (period === "quarterly" && quarter !== undefined) {
+    const qLabels = ["Q1", "Q2", "Q3", "Q4"];
+    periodLabel = `${qLabels[quarter]} ${yr}`;
+  }
+  
+  // Build CSV content - use simple string concatenation to avoid template literal issues
+  const socialHeader = "Social (" + socialPct + "%)";
+  const headerRow = "Type,Montant (₺),Dime 10%," + socialHeader + ",Reste";
+  const row1 = "Offrandes ordinaires," + data.ordinaires.toFixed(2) + "," + (data.ordinaires * 0.1).toFixed(2) + "," + (data.ordinaires * socialPct / 100).toFixed(2) + "," + (data.ordinaires * (1 - 0.1 - socialPct / 100)).toFixed(2);
+  const row2 = "Offrandes pour Orateur," + data.orateur.toFixed(2) + ",0.00,0.00," + data.orateur.toFixed(2);
+  const row3 = "Dimes," + data.dimes.toFixed(2) + "," + (data.dimes * 0.1).toFixed(2) + "," + (data.dimes * socialPct / 100).toFixed(2) + "," + (data.dimes * (1 - 0.1 - socialPct / 100)).toFixed(2);
+  const row4 = "Actions de Grace," + data.actionsGrace.toFixed(2) + "," + (data.actionsGrace * 0.1).toFixed(2) + "," + (data.actionsGrace * socialPct / 100).toFixed(2) + "," + (data.actionsGrace * (1 - 0.1 - socialPct / 100)).toFixed(2);
+  const rowTotal = "TOTAL," + data.totalRecettes.toFixed(2) + "," + data.dimeTotal.toFixed(2) + "," + data.socialTotal.toFixed(2) + "," + data.resteTotal.toFixed(2);
+  
+  const summary = "\n\nRESUME FINANCIER\nTotal Recettes," + data.totalRecettes.toFixed(2) + "\n- Prelvement Dime (10%)," + data.dimeTotal.toFixed(2) + "\n- Prelvement Social (" + socialPct + "%)," + data.socialTotal.toFixed(2) + "\n= Montant Disponible," + data.resteTotal.toFixed(2) + "\n- Total Depenses," + data.totalDepenses.toFixed(2) + "\n= Solde Final," + data.soldeFinal.toFixed(2);
+  
+  const stats = "\n\nSTATISTIQUES\nNombre de cultes," + data.cultes + "\nPresence totale," + data.presence + "\nPresence moyenne," + (data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0) + "\nNouveaux convertis," + data.nouveaux;
+  
+  const csv = headerRow + "\n" + row1 + "\n" + row2 + "\n" + row3 + "\n" + row4 + "\n" + rowTotal + summary + stats;
+  
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `Bilan_${ext?.nom || "EIC"}_${periodLabel.replace(/ /g, "_")}.csv`);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  toast("Bilan exporté en CSV", "success");
+}
+
+(window as any).exportBilanToCSV = exportBilanToCSV;
 
 function pgExtConvertis(extId: string) {
   setActive("/ext/convertis");
@@ -1883,6 +3141,7 @@ window.adminRapFilter = function (sel: HTMLSelectElement, field: string) {
 };
 
 window.showRapModal = showRapModal;
+window.doExportHTML = doExportHTML;
 window.doExportPDF = doExportPDF;
 window.doExportDOCX = doExportDOCX;
 
