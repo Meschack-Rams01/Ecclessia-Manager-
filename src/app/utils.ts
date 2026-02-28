@@ -9,6 +9,15 @@ export function fmt(v: unknown, sym = ""): string {
   );
 }
 
+// Turkish Lira format: ₺ 1 850,00 (space as thousands separator, comma as decimal)
+export function fmtTRY(v: unknown): string {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? "")) || 0;
+  return "₺ " + n.toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function fmtD(d?: string | null): string {
   if (!d) return "—";
   try {

@@ -1,6 +1,6 @@
 import { Store, Auth, seedIfNeeded, type Rapport, type Session } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
-import { fmt, fmtD, uid, mName } from "./utils";
+import { fmt, fmtD, fmtTRY, uid, mName } from "./utils";
 import { icon } from "./icons";
 import { syncFromFirebase, subscribeToExtensions } from "./firebase";
 
@@ -409,198 +409,241 @@ function doExportPDF(rapId: string) {
   const r = Store.getRap(rapId);
   if (!r) return;
   const ext = Store.getExt(r.extensionId);
-  const sym = ext?.symbole || "€";
 
   const { jsPDF } = (window as any).jspdf;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  
+  // Set margins (2.5 cm = 25 mm)
+  const marginLeft = 20;
+  const marginRight = 190;
+  let y = 25; // Start after top margin
+
+  // Use Times New Roman for professional look
+  doc.setFont("times", "normal");
 
   // Add logo if available
   const logo = Store.getLogo();
   if (logo) {
     try {
-      doc.addImage(logo, "PNG", pageWidth / 2 - 15, 5, 30, 30);
+      doc.addImage(logo, "PNG", pageWidth / 2 - 15, y, 25, 25);
+      y += 35;
     } catch (e) {
-      // If logo fails to load, continue without it
+      y += 10;
     }
   }
 
+  // Title - MAJUSCULES, centré, gras
   doc.setFontSize(18);
-  doc.text("RAPPORT DE CULTE", pageWidth / 2, 45, { align: "center" });
-  doc.setFontSize(12);
-  doc.text(ext?.nom || "Emerge in Christ", pageWidth / 2, 53, { align: "center" });
-  doc.text(`Date: ${fmtD(r.date)}`, pageWidth / 2, 59, { align: "center" });
-
-  let y = 75;
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("INFORMATIONS DU CULTE", 15, y);
-  y += 8;
-  doc.setFont("helvetica", "normal");
-  doc.text(`Heure: ${r.heureDebut || "—"} - ${r.heureFin || "—"}`, 15, y);
-  y += 6;
-  doc.text(`Modérateur: ${r.moderateur || "—"}`, 15, y);
-  y += 6;
-  doc.text(`Prédicateur: ${r.predicateur || "—"}`, 15, y);
-  y += 6;
-  doc.text(`Interprète: ${r.interprete || "—"}`, 15, y);
-  y += 6;
-  doc.text(`Thème: ${r.theme || "—"}`, 15, y);
-  y += 6;
-  doc.text(`Textes: ${r.textes || "—"}`, 15, y);
-
-  y += 12;
-  doc.setFont("helvetica", "bold");
-  doc.text("EFFECTIF", 15, y);
-  y += 8;
-  doc.setFont("helvetica", "normal");
-  doc.text(`Papas: ${r.effectif?.papas || 0} | Mamans: ${r.effectif?.mamans || 0} | Frères: ${r.effectif?.freres || 0} | Soeurs: ${r.effectif?.soeurs || 0} | Enfants: ${r.effectif?.enfants || 0}`, 15, y);
-  y += 6;
-  doc.text(`Total présence: ${r.effectif?.total || 0}`, 15, y);
-
-  y += 12;
-  doc.setFont("helvetica", "bold");
-  doc.text("OFFRANDES", 15, y);
-  y += 8;
-  doc.setFont("helvetica", "normal");
-  doc.text(`Offrandes ordinaires: ${fmt(r.offrandes?.ordinaires, sym)}`, 15, y);
-  y += 6;
-  doc.text(`Offrande orateur: ${fmt(r.offrandes?.orateur, sym)}`, 15, y);
-  y += 6;
-  doc.text(`Dîmes: ${fmt(r.offrandes?.dimes, sym)}`, 15, y);
-  y += 6;
-  doc.text(`Actions de grâce: ${fmt(r.offrandes?.actionsGrace, sym)}`, 15, y);
-  y += 6;
-  doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL: ${fmt(r.offrandes?.total, sym)}`, 15, y);
-
-  y += 12;
-  doc.setFont("helvetica", "bold");
-  doc.text("RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS", 15, y);
+  doc.setFont("times", "bold");
+  doc.text("RAPPORT DE CULTE", pageWidth / 2, y, { align: "center" });
   y += 10;
   
-  // Table header
-  doc.setFont("helvetica", "bold");
-  doc.text("Type de recette", 15, y);
-  doc.text("Montant", 70, y);
-  doc.text("Dîme 10%", 105, y);
-  doc.text("Social", 140, y);
-  doc.text("Reste", 175, y);
-  y += 2;
-  doc.line(15, y, 195, y);
+  doc.setFontSize(14);
+  doc.setFont("times", "normal");
+  doc.text(ext?.nom || "Emerge in Christ", pageWidth / 2, y, { align: "center" });
+  y += 8;
+  
+  doc.setFontSize(11);
+  doc.text(`Date: ${fmtD(r.date)}`, pageWidth / 2, y, { align: "center" });
+  y += 15;
+
+  // Section: INFORMATIONS DU CULTE - MAJUSCULES
+  doc.setFontSize(12);
+  doc.setFont("times", "bold");
+  doc.text("INFORMATIONS DU CULTE", marginLeft, y);
+  y += 8;
+  
+  doc.setFontSize(11);
+  doc.setFont("times", "normal");
+  doc.text(`Heure: ${r.heureDebut || "—"} - ${r.heureFin || "—"}`, marginLeft, y); y += 6;
+  doc.text(`Modérateur: ${r.moderateur || "—"}`, marginLeft, y); y += 6;
+  doc.text(`Prédicateur: ${r.predicateur || "—"}`, marginLeft, y); y += 6;
+  doc.text(`Interprète: ${r.interprete || "—"}`, marginLeft, y); y += 6;
+  doc.text(`Thème: ${r.theme || "—"}`, marginLeft, y); y += 6;
+  doc.text(`Textes: ${r.textes || "—"}`, marginLeft, y); y += 10;
+
+  // Effectif
+  doc.setFont("times", "bold");
+  doc.text("EFFECTIF DES PRÉSENTS", marginLeft, y);
+  y += 8;
+  doc.setFont("times", "normal");
+  doc.text(`Papas: ${r.effectif?.papas || 0}  |  Mamans: ${r.effectif?.mamans || 0}  |  Frères: ${r.effectif?.freres || 0}  |  Soeurs: ${r.effectif?.soeurs || 0}  |  Enfants: ${r.effectif?.enfants || 0}`, marginLeft, y);
   y += 6;
+  doc.setFont("times", "bold");
+  doc.text(`Total présence: ${r.effectif?.total || 0}`, marginLeft, y);
+  y += 15;
+
+  // SECTION: RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS - TABLE FORMAT
+  doc.setFontSize(12);
+  doc.text("RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS", marginLeft, y);
+  y += 10;
+  
+  // Table header with borders
+  doc.setFontSize(10);
+  doc.setFont("times", "bold");
+  const colWidths = [60, 35, 35, 35, 35];
+  const cols = ["Type de recette", "Montant (₺)", "Dîme 10 %", "Social (%)", "Reste"];
+  let x = marginLeft;
+  cols.forEach((col, i) => {
+    doc.rect(x, y - 4, colWidths[i], 8); // Cell border
+    doc.text(col, x + 2, y + 1);
+    x += colWidths[i];
+  });
+  y += 8;
   
   // Table rows
-  doc.setFont("helvetica", "normal");
+  doc.setFont("times", "normal");
   const v = r.ventilation;
   const socialPct = Store.getSet().socialPct || 10;
   
-  doc.text("Offrandes ordinaires", 15, y);
-  doc.text(fmt(r.offrandes?.ordinaires || 0, sym), 70, y);
-  doc.text(fmt(v?.ordinaires.dime || 0, sym), 105, y);
-  doc.text(fmt(v?.ordinaires.social || 0, sym), 140, y);
-  doc.text(fmt(v?.ordinaires.reste || 0, sym), 175, y);
-  y += 6;
+  const rows = [
+    ["Offrandes ordinaires", r.offrandes?.ordinaires || 0, v?.ordinaires.dime || 0, v?.ordinaires.social || 0, v?.ordinaires.reste || 0],
+    ["Offrandes pour Orateur", r.offrandes?.orateur || 0, v?.orateur.dime || 0, v?.orateur.social || 0, v?.orateur.reste || 0],
+    ["Dîmes", r.offrandes?.dimes || 0, v?.dimes.dime || 0, v?.dimes.social || 0, v?.dimes.reste || 0],
+    ["Actions de Grâce", r.offrandes?.actionsGrace || 0, v?.actionsGrace.dime || 0, v?.actionsGrace.social || 0, v?.actionsGrace.reste || 0],
+  ];
   
-  doc.text("Offrandes pour Orateur", 15, y);
-  doc.text(fmt(r.offrandes?.orateur || 0, sym), 70, y);
-  doc.text(fmt(v?.orateur.dime || 0, sym), 105, y);
-  doc.text(fmt(v?.orateur.social || 0, sym), 140, y);
-  doc.text(fmt(v?.orateur.reste || 0, sym), 175, y);
-  y += 6;
+  rows.forEach(row => {
+    x = marginLeft;
+    row.forEach((cell, i) => {
+      doc.rect(x, y - 4, colWidths[i], 8);
+      if (i === 0) {
+        doc.text(String(cell), x + 2, y + 1);
+      } else {
+        doc.text(fmtTRY(cell), x + colWidths[i] - 2, y + 1, { align: "right" });
+      }
+      x += colWidths[i];
+    });
+    y += 8;
+  });
   
-  doc.text("Dîmes", 15, y);
-  doc.text(fmt(r.offrandes?.dimes || 0, sym), 70, y);
-  doc.text(fmt(v?.dimes.dime || 0, sym), 105, y);
-  doc.text(fmt(v?.dimes.social || 0, sym), 140, y);
-  doc.text(fmt(v?.dimes.reste || 0, sym), 175, y);
-  y += 6;
+  // TOTAL row
+  x = marginLeft;
+  doc.setFont("times", "bold");
+  doc.rect(x, y - 4, colWidths[0], 8);
+  doc.text("TOTAL", x + 2, y + 1);
+  x += colWidths[0];
   
-  doc.text("Actions de Grâce", 15, y);
-  doc.text(fmt(r.offrandes?.actionsGrace || 0, sym), 70, y);
-  doc.text(fmt(v?.actionsGrace.dime || 0, sym), 105, y);
-  doc.text(fmt(v?.actionsGrace.social || 0, sym), 140, y);
-  doc.text(fmt(v?.actionsGrace.reste || 0, sym), 175, y);
-  y += 2;
-  doc.line(15, y, 195, y);
-  y += 6;
-  
-  doc.setFont("helvetica", "bold");
-  doc.text("TOTAL", 15, y);
-  doc.text(fmt(r.offrandes?.total || 0, sym), 70, y);
-  doc.text(fmt(v?.totalDime || 0, sym), 105, y);
-  doc.text(fmt(v?.totalSocial || 0, sym), 140, y);
-  doc.text(fmt(v?.reste || 0, sym), 175, y);
-
+  const totals = [r.offrandes?.total || 0, v?.totalDime || 0, v?.totalSocial || 0, v?.reste || 0];
+  totals.forEach((cell, i) => {
+    doc.rect(x, y - 4, colWidths[i + 1], 8);
+    doc.text(fmtTRY(cell), x + colWidths[i + 1] - 2, y + 1, { align: "right" });
+    x += colWidths[i + 1];
+  });
   y += 15;
-  doc.setFont("helvetica", "bold");
-  doc.text("DÉPENSES", 15, y);
+
+  // SECTION: DÉPENSES - TABLE FORMAT
+  doc.setFontSize(12);
+  doc.setFont("times", "bold");
+  doc.text("DÉPENSES", marginLeft, y);
   y += 10;
   
   // Expenses table header
-  doc.setFont("helvetica", "bold");
-  doc.text("N°", 15, y);
-  doc.text("Montant", 70, y);
-  doc.text("Motif", 105, y);
-  y += 2;
-  doc.line(15, y, 195, y);
-  y += 6;
+  doc.setFontSize(10);
+  const depCols = ["N°", "Montant (₺)", "Motif"];
+  const depWidths = [15, 40, 120];
+  x = marginLeft;
+  depCols.forEach((col, i) => {
+    doc.rect(x, y - 4, depWidths[i], 8);
+    doc.text(col, x + 2, y + 1);
+    x += depWidths[i];
+  });
+  y += 8;
   
-  doc.setFont("helvetica", "normal");
+  doc.setFont("times", "normal");
   if (r.depenses?.length) {
     r.depenses.forEach((d, i) => {
-      doc.text(String(i + 1), 15, y);
-      doc.text(fmt(d.montant, sym), 70, y);
-      doc.text(d.motif, 105, y);
-      y += 6;
+      x = marginLeft;
+      doc.rect(x, y - 4, depWidths[0], 8);
+      doc.text(String(i + 1), x + 2, y + 1);
+      x += depWidths[0];
+      
+      doc.rect(x, y - 4, depWidths[1], 8);
+      doc.text(fmtTRY(d.montant), x + depWidths[1] - 2, y + 1, { align: "right" });
+      x += depWidths[1];
+      
+      doc.rect(x, y - 4, depWidths[2], 8);
+      doc.text(d.motif, x + 2, y + 1);
+      y += 8;
     });
-    y += 2;
-    doc.line(15, y, 195, y);
-    y += 6;
-    doc.setFont("helvetica", "bold");
-    doc.text("Total dépenses", 15, y);
-    doc.text(fmt(r.totalDepenses || 0, sym), 70, y);
-    y += 6;
-    doc.text("Reste final", 15, y);
-    doc.text(fmt(r.soldeFinal || 0, sym), 70, y);
+    
+    // Total row
+    x = marginLeft;
+    doc.rect(x, y - 4, depWidths[0], 8);
+    doc.setFont("times", "bold");
+    doc.text("Total", x + 2, y + 1);
+    x += depWidths[0];
+    doc.rect(x, y - 4, depWidths[1], 8);
+    doc.text(fmtTRY(r.totalDepenses || 0), x + depWidths[1] - 2, y + 1, { align: "right" });
+    x += depWidths[1];
+    doc.rect(x, y - 4, depWidths[2], 8);
+    y += 10;
+    
+    // Reste final
+    x = marginLeft;
+    doc.text("Reste final", x + 2, y + 1);
+    x += depWidths[0];
+    doc.rect(x, y - 4, depWidths[1], 8);
+    doc.text(fmtTRY(r.soldeFinal || 0), x + depWidths[1] - 2, y + 1, { align: "right" });
   } else {
-    doc.setFont("helvetica", "normal");
-    doc.text("Aucune dépense", 15, y);
-    y += 6;
-    doc.text("Reste final", 15, y);
-    doc.text(fmt(r.soldeFinal || 0, sym), 70, y);
+    x = marginLeft;
+    doc.rect(x, y - 4, 175, 8);
+    doc.text("Aucune dépense", x + 2, y + 1);
+    y += 10;
+    
+    x = marginLeft;
+    doc.setFont("times", "bold");
+    doc.text("Reste final", x + 2, y + 1);
+    x += depWidths[0];
+    doc.rect(x, y - 4, depWidths[1], 8);
+    doc.text(fmtTRY(r.soldeFinal || 0), x + depWidths[1] - 2, y + 1, { align: "right" });
   }
+  y += 15;
 
+  // SECTION: ACCUEIL DES NOUVEAUX - TABLE FORMAT
   if (r.nouveaux?.length) {
-    y += 15;
-    doc.setFont("helvetica", "bold");
-    doc.text("ACCUEIL DES NOUVEAUX", 15, y);
+    doc.setFontSize(12);
+    doc.setFont("times", "bold");
+    doc.text("ACCUEIL DES NOUVEAUX", marginLeft, y);
     y += 10;
     
     // New converts table header
-    doc.setFont("helvetica", "bold");
-    doc.text("Noms", 15, y);
-    doc.text("Téléphone", 105, y);
-    y += 2;
-    doc.line(15, y, 195, y);
-    y += 6;
-    
-    doc.setFont("helvetica", "normal");
-    r.nouveaux.forEach((n) => {
-      doc.text(n.nom, 15, y);
-      doc.text(n.tel || "—", 105, y);
-      y += 6;
+    doc.setFontSize(10);
+    const newCols = ["Noms", "Téléphone"];
+    const newWidths = [100, 75];
+    x = marginLeft;
+    newCols.forEach((col, i) => {
+      doc.rect(x, y - 4, newWidths[i], 8);
+      doc.text(col, x + 2, y + 1);
+      x += newWidths[i];
     });
+    y += 8;
+    
+    doc.setFont("times", "normal");
+    r.nouveaux.forEach((n) => {
+      x = marginLeft;
+      doc.rect(x, y - 4, newWidths[0], 10);
+      doc.text(n.nom, x + 2, y + 2);
+      x += newWidths[0];
+      doc.rect(x, y - 4, newWidths[1], 10);
+      doc.text(n.tel || "—", x + 2, y + 2);
+      y += 10;
+    });
+    y += 10;
   }
 
+  // SIGNATURES section
+  doc.setFontSize(12);
+  doc.setFont("times", "bold");
+  doc.text("SIGNATURES", marginLeft, y);
   y += 15;
-  doc.setFont("helvetica", "bold");
-  doc.text("SIGNATURES", 15, y);
-  y += 15;
-  doc.setFont("helvetica", "normal");
-  doc.text(`Secrétaire: ___________________`, 15, y);
-  doc.text(`Trésorier: ___________________`, 80, y);
-  doc.text(`Pasteur: ___________________`, 145, y);
+  
+  doc.setFontSize(10);
+  doc.setFont("times", "normal");
+  doc.text("Secrétaire: ___________________", marginLeft, y);
+  doc.text("Trésorier: ___________________", marginLeft + 65, y);
+  doc.text("Pasteur: ___________________", marginLeft + 130, y);
 
   doc.save(`Rapport_${ext?.nom || "EIC"}_${r.date}.pdf`);
   toast("PDF exporté avec succès", "success");
