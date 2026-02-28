@@ -8,6 +8,7 @@ declare global {
   interface Window {
     _charts: Record<string, any>;
     switchTab: (tab: string) => void;
+    closeModal: () => void;
     doLogin: (type: string) => void;
     doLogout: () => void;
     toggleSidebar: () => void;
@@ -42,6 +43,12 @@ declare global {
     updateEffTotal: () => void;
     updateOffTotals: () => void;
     updateDepTotal: (idx: number) => void;
+    pgAdminExts: () => void;
+    saveSettings: () => void;
+    clearLogo: () => void;
+    exportData: () => void;
+    importData: (input: HTMLInputElement) => void;
+    resetData: () => void;
   }
 }
 
@@ -144,6 +151,9 @@ function openModal(html: string, large: boolean = false) {
 function closeModal() {
   document.getElementById("modal-root")!.innerHTML = "";
 }
+
+// Functions available globally (for onclick handlers)
+window.closeModal = closeModal;
 
 function updateLogoUI() {
   const logo = Store.getLogo();
@@ -1637,6 +1647,14 @@ export async function initApp() {
   window.updateEffTotal = updateEffTotal;
   window.updateOffTotals = updateOffTotals;
   window.updateDepTotal = updateDepTotal;
+
+  // Admin functions used in onclick handlers
+  window.pgAdminExts = pgAdminExts;
+  window.saveSettings = saveSettings;
+  window.clearLogo = clearLogo;
+  window.exportData = exportData;
+  window.importData = importData;
+  window.resetData = resetData;
 
   const ses = Auth.ses();
   if (ses) {
