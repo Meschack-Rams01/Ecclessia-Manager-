@@ -2,7 +2,6 @@ import { Store, Auth, seedIfNeeded, type Rapport, type Session } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
 import { fmt, fmtD, uid, mName } from "./utils";
 import { icon } from "./icons";
-import { syncFromFirebase, subscribeToExtensions } from "./firebase";
 
 declare global {
   interface Window {
@@ -33,6 +32,15 @@ declare global {
     extRapFilter: (sel: HTMLSelectElement, field: string) => void;
     doDeleteRap: (id: string) => void;
     goToStep: (step: number) => void;
+    saveStep0: () => void;
+    saveStep1: () => void;
+    saveStep2: () => void;
+    saveStep3: () => void;
+    saveStep4: () => void;
+    saveStep5: () => void;
+    updateEffTotal: () => void;
+    updateOffTotals: () => void;
+    updateDepTotal: (idx: number) => void;
   }
 }
 
@@ -66,6 +74,13 @@ function initRouter() {
   dispatch();
 }
 
+function navItemClick(path: string) {
+  navTo(path);
+  if (window.innerWidth <= 900) {
+    document.getElementById("sidebar")?.classList.remove("open");
+  }
+}
+
 function setTopbar(title: string, sub: string = "", badge: string = "") {
   document.getElementById("tb-title")!.textContent = title;
   document.getElementById("tb-sub")!.textContent = sub || "";
@@ -84,7 +99,7 @@ function buildNav(def: typeof ADMIN_NAV) {
         `<div class="nav-group">${g.g}</div>${g.items
           .map(
             (it) =>
-              `<button class="nav-item" data-path="${it.path}" onclick="navTo('${it.path}')"><span class="nav-icon">${icon(it.icon)}</span>${it.lbl}</button>`
+              `<button class="nav-item" data-path="${it.path}" onclick="navItemClick('${it.path}')"><span class="nav-icon">${icon(it.icon)}</span>${it.lbl}</button>`
           )
           .join("")}`
     )
@@ -249,29 +264,38 @@ function chartLine(id: string, labels: string[], datasets: any[]) {
 
 function extCard(ext: Extension): string {
   const s = Store.stats(ext.id);
+  const raps = Store.getRaps(ext.id);
+  const rapCount = raps.length;
+  const last = raps.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
   return `<div class="ext-card" style="--ext-color:${ext.couleur || "#8B5CF6"}">
-    <div class="flex justify-between items-center mb-8">
-      <div><div class="ext-card-name">${ext.nom}</div><div class="ext-card-ville">${icon("mapPin")} ${ext.ville}, ${ext.pays}</div></div>
-      <div class="ext-card-pastor">
+    <div class="flex justify-between items-center mb-8" style="gap:12px;flex-wrap:wrap;">
+      <div>
+        <div class="ext-card-name">${ext.nom}</div>
+        <div class="ext-card-ville">${icon("mapPin")} ${ext.ville}, ${ext.pays}</div>
+      </div>
+      <span class="badge badge-purple">${ext.symbole || "€"} ${ext.devise}</span>
+    </div>
+    <div class="flex gap-16 mb-12" style="flex-wrap:wrap;">
+      <div class="text-xs text-muted" style="line-height:1.8;min-width:180px;">
         ${icon("user")} ${ext.pasteur?.nom || "—"}<br>${icon("mail")} ${ext.pasteur?.email || "—"}<br>${icon("phone")} ${ext.pasteur?.tel || "—"}
       </div>
-      <div class="ext-card-team">
+      <div class="text-xs text-muted" style="line-height:1.8;min-width:180px;">
         ${icon("handshake")} Coord: ${ext.coordinateur || "—"}<br>${icon("clipboard")} Secrét: ${ext.secretaire || "—"}<br>${icon("wallet")} Trésor: ${ext.tresorier || "—"}
       </div>
-    <div class="text-xs text-muted mb-8" style="line-height:1.8">
-      ${icon("user")} ${ext.pasteur?.nom || "—"}<br>${icon("mail")} ${ext.pasteur?.email || "—"}<br>${icon("phone")} ${ext.pasteur?.tel || "—"}
-    </div>
-    <div class="text-xs text-muted mb-12" style="line-height:1.8">
-      ${icon("handshake")} Coord: ${ext.coordinateur || "—"}<br>${icon("clipboard")} Secrét: ${ext.secretaire || "—"}<br>${icon("wallet")} Trésor: ${ext.tresorier || "—"}
     </div>
     <div class="ext-mini-stats mb-12">
       <div><div class="ext-stat-val">${s.cultes}</div><div class="ext-stat-lbl">Cultes</div></div>
-      <div><div class="ext-stat-val">${s.presence}</div><div class="ext-stat-lbl">Moy.</div></div>
-      <div><div class="ext-stat-val">${s.nouveaux}</div><div class="ext-stat-lbl">Conv.</div></div>
+      <div><div class="ext-stat-val">${s.presence}</div><div class="ext-stat-lbl">Présence moy.</div></div>
+      <div><div class="ext-stat-val">${s.nouveaux}</div><div class="ext-stat-lbl">Convertis</div></div>
     </div>
-    <div class="flex gap-8">
-      <button class="btn btn-secondary btn-sm" onclick="openExtForm('${ext.id}')">✏ Modifier</button>
-      <button class="btn btn-danger btn-sm" onclick="confirmDelExt('${ext.id}')">${icon("trash")} Supprimer</button>
+    <div class="flex justify-between items-center mt-8" style="gap:12px;flex-wrap:wrap;">
+      <div class="text-xs text-muted">
+        ${icon("fileText")} ${rapCount} rapport(s)${last ? ` · Dernier: ${fmtD(last.date)}` : ""}
+      </div>
+      <div class="flex gap-8">
+        <button class="btn btn-secondary btn-sm" onclick="openExtForm('${ext.id}')">${icon("pen")} Modifier</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelExt('${ext.id}')">${icon("trash")} Supprimer</button>
+      </div>
     </div>
   </div>`;
 }
@@ -1190,6 +1214,20 @@ function saveStep2() {
   if (ses?.role === "extension") pgExtNew(ses.extId);
 }
 
+function updateDepTotal(_idx: number) {
+  // Recalcule simplement le total à partir des champs actuels
+  const depRows = document.querySelectorAll(".dep-row");
+  let total = 0;
+  depRows.forEach((_, i) => {
+    const mon = parseInt((document.getElementById(`dep-mon-${i}`) as HTMLInputElement)?.value) || 0;
+    total += mon;
+  });
+  const ses = Auth.ses();
+  const ext = ses && ses.role === "extension" ? Store.getExt(ses.extId) : null;
+  const sym = ext?.symbole || "€";
+  document.getElementById("rf-dep-total")!.textContent = fmt(total, sym);
+}
+
 window.addDepRow = function () {
   if (!rapFormData) return;
   rapFormData.depenses = rapFormData.depenses || [];
@@ -1584,9 +1622,19 @@ export async function initApp() {
   };
 
   window.navTo = navTo;
+  (window as any).navItemClick = navItemClick;
   window.curPath = curPath;
   window.curParams = curParams;
   window.goToStep = goToStep;
+  window.saveStep0 = saveStep0;
+  window.saveStep1 = saveStep1;
+  window.saveStep2 = saveStep2;
+  window.saveStep3 = saveStep3;
+  window.saveStep4 = saveStep4;
+  window.saveStep5 = saveStep5;
+  window.updateEffTotal = updateEffTotal;
+  window.updateOffTotals = updateOffTotals;
+  window.updateDepTotal = updateDepTotal;
 
   const ses = Auth.ses();
   if (ses) {
