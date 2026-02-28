@@ -16,7 +16,17 @@ export type Rapport = {
   textes?: string;
   effectif?: { papas: number; mamans: number; freres: number; soeurs: number; enfants: number; total: number };
   offrandes?: { ordinaires: number; orateur: number; dimes: number; actionsGrace: number; total: number };
-  ventilation?: { dixPctDime: number; dixPctSocial: number; reste: number };
+  ventilation?: {
+    // Detailed breakdown per offering type
+    ordinaires: { dime: number; social: number; reste: number };
+    orateur: { dime: number; social: number; reste: number };
+    dimes: { dime: number; social: number; reste: number };
+    actionsGrace: { dime: number; social: number; reste: number };
+    // Totals
+    totalDime: number;
+    totalSocial: number;
+    reste: number;
+  };
   depenses?: RapportDepense[];
   totalDepenses?: number;
   soldeFinal?: number;
@@ -27,7 +37,7 @@ export type Rapport = {
 
 export type Session = { role: "admin" } | { role: "extension"; extId: string };
 
-export type Settings = { nom: string; adminPw: string };
+export type Settings = { nom: string; adminPw: string; socialPct?: number };
 
 const DEMO_MODE = false;
 
@@ -72,9 +82,13 @@ export function seedIfNeeded(): void {
           },
           offrandes: { ordinaires: ord, orateur: or, dimes, actionsGrace: ag, total: tot },
           ventilation: {
-            dixPctDime: +Number(dimes * 0.1).toFixed(2),
-            dixPctSocial: +Number(tot * 0.1).toFixed(2),
-            reste: +Number(tot * 0.8).toFixed(2),
+            ordinaires: { dime: 0, social: 0, reste: ord },
+            orateur: { dime: 0, social: 0, reste: or },
+            dimes: { dime: +Number(dimes * 0.1).toFixed(2), social: 0, reste: +Number(dimes * 0.9).toFixed(2) },
+            actionsGrace: { dime: 0, social: 0, reste: ag },
+            totalDime: +Number(dimes * 0.1).toFixed(2),
+            totalSocial: 0,
+            reste: +Number(ord + or + dimes * 0.9 + ag).toFixed(2),
           },
           depenses: [
             { motif: "Transport", montant: Math.floor(dep * 0.4) },

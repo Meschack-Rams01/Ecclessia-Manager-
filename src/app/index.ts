@@ -377,10 +377,10 @@ function showRapModal(rapId: string) {
           <div class="calc-row total-row"><span>Total</span><span>${fmt(r.offrandes?.total, sym)}</span></div>
         </div>
         <div class="calc-box">
-          <div class="form-section-title">Ventilation (${sym})</div>
-          <div class="calc-row"><span>10% Dîmes</span><span>${fmt(r.ventilation?.dixPctDime, sym)}</span></div>
-          <div class="calc-row"><span>10% Social</span><span>${fmt(r.ventilation?.dixPctSocial, sym)}</span></div>
-          <div class="calc-row"><span>Reste</span><span>${fmt(r.ventilation?.reste, sym)}</span></div>
+          <div class="form-section-title">VENTILATION (${sym})</div>
+          <div class="calc-row"><span>Total Dîmes</span><span>${fmt(r.ventilation?.totalDime, sym)}</span></div>
+          <div class="calc-row"><span>Total Prélèvement Social</span><span>${fmt(r.ventilation?.totalSocial, sym)}</span></div>
+          <div class="calc-row"><span>Reste disponible</span><span>${fmt(r.ventilation?.reste, sym)}</span></div>
           <div class="calc-row"><span>Dépenses</span><span>${fmt(r.totalDepenses, sym)}</span></div>
           <div class="calc-row total-row"><span>Solde final</span><span>${fmt(r.soldeFinal, sym)}</span></div>
         </div>
@@ -392,7 +392,7 @@ function showRapModal(rapId: string) {
         <tbody>${r.depenses!.map(d => `<tr><td>${d.motif}</td><td>${fmt(d.montant, sym)}</td></tr>`).join("")}</tbody></table>
       </div>` : ""}
       ${r.nouveaux?.length ? `
-      <div class="form-section-title mb-8">Nouveaux convertis</div>
+      <div class="form-section-title mb-8">ACCUEIL DES NOUVEAUX</div>
       <div class="table-wrap mb-12">
         <table><thead><tr><th>Nom</th><th>Téléphone</th></tr></thead>
         <tbody>${r.nouveaux!.map(n => `<tr><td>${n.nom}</td><td>${n.tel || "—"}</td></tr>`).join("")}</tbody></table>
@@ -466,14 +466,14 @@ function doExportPDF(rapId: string) {
 
   y += 12;
   doc.setFont("helvetica", "bold");
-  doc.text("VENTILATION", 15, y);
+  doc.text("RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS", 15, y);
   y += 8;
   doc.setFont("helvetica", "normal");
-  doc.text(`10% des dîmes: ${fmt(r.ventilation?.dixPctDime, sym)}`, 15, y);
+  doc.text(`Total Dîmes (10%): ${fmt(r.ventilation?.totalDime, sym)}`, 15, y);
   y += 6;
-  doc.text(`10% social: ${fmt(r.ventilation?.dixPctSocial, sym)}`, 15, y);
+  doc.text(`Total Prélèvement Social: ${fmt(r.ventilation?.totalSocial, sym)}`, 15, y);
   y += 6;
-  doc.text(`Reste: ${fmt(r.ventilation?.reste, sym)}`, 15, y);
+  doc.text(`Reste disponible: ${fmt(r.ventilation?.reste, sym)}`, 15, y);
 
   y += 12;
   doc.setFont("helvetica", "bold");
@@ -497,7 +497,7 @@ function doExportPDF(rapId: string) {
   if (r.nouveaux?.length) {
     y += 12;
     doc.setFont("helvetica", "bold");
-    doc.text("NOUVEAUX CONVERTIS", 15, y);
+    doc.text("ACCUEIL DES NOUVEAUX", 15, y);
     y += 8;
     doc.setFont("helvetica", "normal");
     r.nouveaux.forEach((n) => {
@@ -827,6 +827,7 @@ function pgAdminSettings() {
   setActive("/admin/settings");
   setTopbar("Paramètres", "Configuration", "Admin");
   const cfg = Store.getSet();
+  const socialPct = cfg.socialPct ?? 10;
 
   render(`
     <div class="page-header">
@@ -854,6 +855,15 @@ function pgAdminSettings() {
         ${Store.getLogo() ? `<button class="btn btn-danger btn-sm mt-8" onclick="clearLogo()">${icon("trash")} Supprimer le logo</button>` : ""}
       </div>
     </div>
+    <div class="card mb-20">
+      <div class="form-section-title mb-12">Paramètres financiers</div>
+      <div class="form-row">
+        <label>Pourcentage du prélèvement social (%)</label>
+        <input id="set-social-pct" type="number" min="0" max="100" value="${socialPct}" />
+        <small style="color: var(--text2)">Ce pourcentage sera appliqué aux offrandes pour le prélèvement social. Laissez vide pour 10% par défaut.</small>
+      </div>
+      <button class="btn btn-primary mt-12" onclick="saveSettings()">${icon("save")} Enregistrer</button>
+    </div>
     <div class="card">
       <div class="form-section-title mb-12">Données</div>
       <div class="flex gap-12">
@@ -869,7 +879,9 @@ function pgAdminSettings() {
 function saveSettings() {
   const nom = (document.getElementById("set-nom") as HTMLInputElement).value.trim();
   const adminPw = (document.getElementById("set-admin-pw") as HTMLInputElement).value.trim();
-  Store.saveSet({ nom, adminPw });
+  const socialPctInput = (document.getElementById("set-social-pct") as HTMLInputElement).value;
+  const socialPct = socialPctInput ? parseInt(socialPctInput) : 10;
+  Store.saveSet({ nom, adminPw, socialPct });
   updateLogoUI();
   toast("Paramètres enregistrés", "success");
 }
@@ -987,7 +999,15 @@ function pgExtNew(extId: string) {
       predicateur: ext?.pasteur.nom || "",
       effectif: { papas: 0, mamans: 0, freres: 0, soeurs: 0, enfants: 0, total: 0 },
       offrandes: { ordinaires: 0, orateur: 0, dimes: 0, actionsGrace: 0, total: 0 },
-      ventilation: { dixPctDime: 0, dixPctSocial: 0, reste: 0 },
+      ventilation: {
+        ordinaires: { dime: 0, social: 0, reste: 0 },
+        orateur: { dime: 0, social: 0, reste: 0 },
+        dimes: { dime: 0, social: 0, reste: 0 },
+        actionsGrace: { dime: 0, social: 0, reste: 0 },
+        totalDime: 0,
+        totalSocial: 0,
+        reste: 0,
+      },
       depenses: [],
       nouveaux: [],
       signatures: { secretaire: ext?.secretaire || "", tresorier: ext?.tresorier || "", pasteur: ext?.pasteur.nom || "" },
@@ -1079,27 +1099,48 @@ function renderStepContent(r: Rapport, sym: string): string {
           <button class="btn btn-primary" onclick="saveStep1()">Suivant →</button>
         </div>`;
     case 2:
-      const tot = (r.offrandes?.ordinaires || 0) + (r.offrandes?.orateur || 0) + (r.offrandes?.dimes || 0) + (r.offrandes?.actionsGrace || 0);
+      const socialPct = (Store.getSet().socialPct ?? 10) / 100;
+      const ord = r.offrandes?.ordinaires || 0;
+      const ora = r.offrandes?.orateur || 0;
+      const dim = r.offrandes?.dimes || 0;
+      const ag = r.offrandes?.actionsGrace || 0;
+      const tot = ord + ora + dim + ag;
+      // Calculate ventilation breakdown
+      const ordDime = 0, ordSocial = +(ord * socialPct).toFixed(2), ordReste = +(ord - ord * socialPct).toFixed(2);
+      const oraDime = 0, oraSocial = +(ora * socialPct).toFixed(2), oraReste = +(ora - ora * socialPct).toFixed(2);
+      const dimDime = +(dim * 0.1).toFixed(2), dimSocial = +(dim * socialPct).toFixed(2), dimReste = +(dim - dim * 0.1 - dim * socialPct).toFixed(2);
+      const agDime = 0, agSocial = +(ag * socialPct).toFixed(2), agReste = +(ag - ag * socialPct).toFixed(2);
+      const totalDime = dimDime;
+      const totalSocial = ordSocial + oraSocial + dimSocial + agSocial;
+      const totalReste = ordReste + oraReste + dimReste + agReste;
       return `
         <div class="form-section-title">Offrandes (${sym})</div>
         <div class="form-row cols-2">
-          <div><label>Offrandes ordinaires</label><input type="number" id="rf-ord" value="${r.offrandes?.ordinaires || 0}" min="0" onchange="updateOffTotals()" /></div>
-          <div><label>Offrande orateur</label><input type="number" id="rf-ora" value="${r.offrandes?.orateur || 0}" min="0" onchange="updateOffTotals()" /></div>
+          <div><label>Offrandes ordinaires</label><input type="number" id="rf-ord" value="${ord}" min="0" onchange="updateOffTotals()" /></div>
+          <div><label>Offrande orateur</label><input type="number" id="rf-ora" value="${ora}" min="0" onchange="updateOffTotals()" /></div>
         </div>
         <div class="form-row cols-2">
-          <div><label>Dîmes</label><input type="number" id="rf-dim" value="${r.offrandes?.dimes || 0}" min="0" onchange="updateOffTotals()" /></div>
-          <div><label>Actions de grâce</label><input type="number" id="rf-ag" value="${r.offrandes?.actionsGrace || 0}" min="0" onchange="updateOffTotals()" /></div>
+          <div><label>Dîmes</label><input type="number" id="rf-dim" value="${dim}" min="0" onchange="updateOffTotals()" /></div>
+          <div><label>Actions de grâce</label><input type="number" id="rf-ag" value="${ag}" min="0" onchange="updateOffTotals()" /></div>
         </div>
         <div class="total-box mt-12">
           <span class="total-box-label">Total offrandes</span>
           <span class="total-box-value" id="rf-off-total">${fmt(tot, sym)}</span>
         </div>
-        <div class="form-section-title mt-20">Ventilation</div>
-        <div class="calc-box">
-          <div class="calc-row"><span>10% des dîmes</span><span id="rf-vent-dim">${fmt(r.ventilation?.dixPctDime || 0, sym)}</span></div>
-          <div class="calc-row"><span>10% social (totale)</span><span id="rf-vent-soc">${fmt(r.ventilation?.dixPctSocial || 0, sym)}</span></div>
-          <div class="calc-row"><span>Reste</span><span id="rf-vent-reste">${fmt(r.ventilation?.reste || 0, sym)}</span></div>
+        <div class="form-section-title mt-20">RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS</div>
+        <div class="table-wrap mt-12">
+          <table>
+            <thead><tr><th>Type de recette</th><th>Montant</th><th>Dîme (10%)</th><th>Social (${Store.getSet().socialPct || 10}%)</th><th>Reste</th></tr></thead>
+            <tbody>
+              <tr><td>Offrandes ordinaires</td><td>${fmt(ord, sym)}</td><td>${fmt(ordDime, sym)}</td><td>${fmt(ordSocial, sym)}</td><td>${fmt(ordReste, sym)}</td></tr>
+              <tr><td>Offrandes pour Orateur</td><td>${fmt(ora, sym)}</td><td>${fmt(oraDime, sym)}</td><td>${fmt(oraSocial, sym)}</td><td>${fmt(oraReste, sym)}</td></tr>
+              <tr><td>Dîmes</td><td>${fmt(dim, sym)}</td><td>${fmt(dimDime, sym)}</td><td>${fmt(dimSocial, sym)}</td><td>${fmt(dimReste, sym)}</td></tr>
+              <tr><td>Actions de Grâce</td><td>${fmt(ag, sym)}</td><td>${fmt(agDime, sym)}</td><td>${fmt(agSocial, sym)}</td><td>${fmt(agReste, sym)}</td></tr>
+              <tr class="total-row"><td><strong>TOTAL</strong></td><td><strong>${fmt(tot, sym)}</strong></td><td><strong>${fmt(totalDime, sym)}</strong></td><td><strong>${fmt(totalSocial, sym)}</strong></td><td><strong>${fmt(totalReste, sym)}</strong></td></tr>
+            </tbody>
+          </table>
         </div>
+        <input type="hidden" id="rf-vent-total-reste" value="${totalReste}" />
         <div class="flex justify-between mt-16">
           <button class="btn btn-secondary" onclick="goToStep(1)">← Précédent</button>
           <button class="btn btn-primary" onclick="saveStep2()">Suivant →</button>
@@ -1122,7 +1163,7 @@ function renderStepContent(r: Rapport, sym: string): string {
         </div>`;
     case 4:
       return `
-        <div class="form-section-title">Nouveaux convertis</div>
+        <div class="form-section-title">ACCUEIL DES NOUVEAUX</div>
         <div id="conv-list">
           ${(r.nouveaux || []).map((n, i) => `<div class="conv-row"><input type="text" placeholder="Nom" value="${n.nom}" id="conv-nom-${i}"><input type="text" placeholder="Téléphone" value="${n.tel || ""}" id="conv-tel-${i}"><button class="btn btn-danger btn-icon" onclick="removeConvRow(${i})">${icon("x")}</button></div>`).join("")}
         </div>
@@ -1223,11 +1264,39 @@ function saveStep2() {
   const ag = parseInt((document.getElementById("rf-ag") as HTMLInputElement).value) || 0;
   const total = ord + ora + dim + ag;
 
+  // Get social percentage from settings (default 10%)
+  const socialPct = (Store.getSet().socialPct ?? 10) / 100;
+
+  // Calculate detailed breakdown
+  const ordDime = 0;
+  const ordSocial = +(ord * socialPct).toFixed(2);
+  const ordReste = +(ord - ordSocial).toFixed(2);
+
+  const oraDime = 0;
+  const oraSocial = +(ora * socialPct).toFixed(2);
+  const oraReste = +(ora - oraSocial).toFixed(2);
+
+  const dimDime = +(dim * 0.1).toFixed(2);
+  const dimSocial = +(dim * socialPct).toFixed(2);
+  const dimReste = +(dim - dimDime - dimSocial).toFixed(2);
+
+  const agDime = 0;
+  const agSocial = +(ag * socialPct).toFixed(2);
+  const agReste = +(ag - agSocial).toFixed(2);
+
+  const totalDime = dimDime;
+  const totalSocial = ordSocial + oraSocial + dimSocial + agSocial;
+  const totalReste = ordReste + oraReste + dimReste + agReste;
+
   rapFormData.offrandes = { ordinaires: ord, orateur: ora, dimes: dim, actionsGrace: ag, total };
   rapFormData.ventilation = {
-    dixPctDime: +(dim * 0.1).toFixed(2),
-    dixPctSocial: +(total * 0.1).toFixed(2),
-    reste: +(total * 0.8).toFixed(2),
+    ordinaires: { dime: ordDime, social: ordSocial, reste: ordReste },
+    orateur: { dime: oraDime, social: oraSocial, reste: oraReste },
+    dimes: { dime: dimDime, social: dimSocial, reste: dimReste },
+    actionsGrace: { dime: agDime, social: agSocial, reste: agReste },
+    totalDime,
+    totalSocial,
+    reste: totalReste,
   };
   rapStep = 3;
   const ses = Auth.ses();
@@ -1274,7 +1343,18 @@ function saveStep3() {
   });
   rapFormData.depenses = deps;
   rapFormData.totalDepenses = deps.reduce((s, d) => s + d.montant, 0);
-  rapFormData.soldeFinal = (rapFormData.offrandes?.total || 0) - rapFormData.totalDepenses;
+  
+  // Calculate based on "Reste" from ventilation (not total offrandes)
+  const reste = rapFormData.ventilation?.reste || 0;
+  
+  // Check if expenses exceed the "Reste"
+  if (rapFormData.totalDepenses > reste) {
+    toast(`Attention: Les dépenses (${rapFormData.totalDepenses}) dépassent le reste disponible (${reste})!`, "error");
+    // Don't proceed to next step
+    return;
+  }
+  
+  rapFormData.soldeFinal = reste - rapFormData.totalDepenses;
   rapStep = 4;
   const ses = Auth.ses();
   if (ses?.role === "extension") pgExtNew(ses.extId);
