@@ -1,8 +1,15 @@
-import { Store, Auth, seedIfNeeded, type Rapport, type Session } from "./state";
+import { Store, Auth, seedIfNeeded, type Rapport } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
 import { fmt, fmtD, fmtTRY, uid, mName } from "./utils";
 import { icon } from "./icons";
-import { syncFromFirebase, subscribeToExtensions } from "./firebase";
+import { syncFromSupabase, subscribeToExtensions } from "./supabase";
+import { createAppContext, type AppContext } from "./context";
+import { curParams, curPath, initRouter, navTo, regRoute } from "./router";
+import { toast } from "./ui/toast";
+import { openModal, closeModal } from "./ui/modal";
+import { pgAdminExtsPage } from "./pages/admin/pgAdminExtsPage";
+import { pgAdminDashPage } from "./pages/admin/pgAdminDashPage";
+import { pgAdminSettingsPage } from "./pages/admin/pgAdminSettingsPage";
 
 declare global {
   interface Window {
@@ -53,14 +60,11 @@ declare global {
     doExportBilan: () => void;
     doExportBilanExt: (period: string) => void;
     exportBilanToCSV: (extId: string, period: string, yr: number, month?: number, quarter?: number) => void;
+    handleLogoUpload: (input: HTMLInputElement) => void;
   }
 }
 
-const _routes: Record<string, (params: Record<string, string>) => void> = {};
-
-function regRoute(path: string, fn: (params: Record<string, string>) => void) {
-  _routes[path] = fn;
-}
+let appCtx: AppContext | null = null;
 
 // Login screen functions available immediately
 window.switchTab = function (tab: string) {
@@ -70,30 +74,6 @@ window.switchTab = function (tab: string) {
   document.getElementById("panel-extension")!.classList.toggle("active", tab === "extension");
   document.getElementById("panel-admin")!.classList.toggle("active", tab === "admin");
 };
-
-function navTo(path: string, params: Record<string, string> = {}) {
-  const q = Object.keys(params).length ? "?" + new URLSearchParams(params).toString() : "";
-  window.location.hash = path + q;
-}
-
-function curPath(): string {
-  return (window.location.hash.slice(1).split("?")[0]) || "/";
-}
-
-function curParams(): Record<string, string> {
-  const [, q] = window.location.hash.slice(1).split("?");
-  return q ? Object.fromEntries(new URLSearchParams(q)) : {};
-}
-
-function initRouter() {
-  const dispatch = () => {
-    const p = curPath();
-    const fn = _routes[p] || _routes["*"];
-    if (fn) fn(curParams());
-  };
-  window.addEventListener("hashchange", dispatch);
-  dispatch();
-}
 
 function navItemClick(path: string) {
   navTo(path);
@@ -131,29 +111,6 @@ function setActive(path: string) {
   document.querySelectorAll(".nav-item").forEach((el) => {
     el.classList.toggle("active", (el as HTMLElement).dataset.path === path);
   });
-}
-
-function toast(msg: string, type: "success" | "error" = "success") {
-  const w = document.getElementById("toast-wrap")!;
-  const el = document.createElement("div");
-  el.className = `toast t-${type}`;
-  el.innerHTML = `<span>${type === "success" ? "✓" : "✕"}</span><span>${msg}</span>`;
-  w.appendChild(el);
-  setTimeout(() => {
-    el.style.animation = "toastOut .3s ease forwards";
-    setTimeout(() => el.remove(), 300);
-  }, 3200);
-}
-
-function openModal(html: string, large: boolean = false) {
-  document.getElementById("modal-root")!.innerHTML = `
-    <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
-       <div class="modal${large ? " modal-lg" : ""}">${html}</div>
-     </div>`;
-}
-
-function closeModal() {
-  document.getElementById("modal-root")!.innerHTML = "";
 }
 
 // Functions available globally (for onclick handlers)
@@ -215,8 +172,8 @@ function initRealtimeSync() {
   // Subscribe to extension changes from Supabase
   subscribeToExtensions((ext, action) => {
     if (action === "DELETE") {
-      // Force refresh from Firebase on delete
-      syncFromFirebase().then(() => {
+      // Force refresh from Supabase on delete
+      syncFromSupabase().then(() => {
         populateExtSel();
         toast("Une extension a été supprimée", "success");
       });
@@ -552,7 +509,6 @@ function doExportPDF(rapId: string) {
   
   // Set margins (2.5 cm = 25 mm)
   const marginLeft = 20;
-  const marginRight = 190;
   let y = 25; // Start after top margin
 
   // Use Times New Roman for professional look
@@ -564,7 +520,7 @@ function doExportPDF(rapId: string) {
     try {
       doc.addImage(logo, "PNG", pageWidth / 2 - 15, y, 25, 25);
       y += 35;
-    } catch (e) {
+    } catch {
       y += 10;
     }
   }
@@ -919,7 +875,7 @@ function doExportHTML(rapId: string) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rapport de Culte - ${ext?.nom || "EIC"} - ${r.date}</title>
-  <script src="https://cdn.tailwindcss.com"><\/script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @page {
       size: A4;
@@ -934,8 +890,8 @@ function doExportHTML(rapId: string) {
         padding: 16mm !important;
       }
       .no-print { display: none !important; }
-      .print\:page-break-before { page-break-before: always; }
-      .print\:hidden { display: none !important; }
+      .print\\:page-break-before { page-break-before: always; }
+      .print\\:hidden { display: none !important; }
       .break-before-page { page-break-before: always; break-before: always; }
       .break-after-avoid { break-after: avoid; page-break-after: avoid; }
       .break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
@@ -1127,10 +1083,10 @@ function doExportHTML(rapId: string) {
           localStorage.setItem('eic_logo', currentLogo);
           alert('Logo sauvegardé ! Il sera automatiquement affiché lors de vos prochaines impressions.');
         } catch (e) {
-          alert('Erreur lors de la sauvegarde du logo. L\'image est peut-être trop grande.');
+          alert("Erreur lors de la sauvegarde du logo. L'image est peut-être trop grande.");
         }
       } else {
-        alert('Veuillez d\'abord sélectionner un logo.');
+        alert("Veuillez d'abord sélectionner un logo.");
       }
     }
 
@@ -1162,7 +1118,7 @@ async function doExportDOCX(rapId: string) {
   const ext = Store.getExt(r.extensionId);
   const sym = ext?.symbole || "€";
 
-  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle } = (window as any).docx;
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType } = (window as any).docx;
 
   const v = r.ventilation;
   const socialPct = Store.getSet().socialPct || 10;
@@ -1566,8 +1522,7 @@ function doExportBilanHTML() {
   }
   
   const { extId, period, yr, month, quarter, periodLabel, socialPct } = params;
-  const exts = Store.getExts();
-  const ext = extId ? exts.find(e => e.id === extId) : null;
+  // const exts = Store.getExts(); // not needed in export
   const logo = Store.getLogo();
   const cfg = Store.getSet();
 
@@ -1644,7 +1599,7 @@ function doExportBilanHTML() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bilan Financier - ${periodLabel}</title>
-  <script src="https://cdn.tailwindcss.com"><\/script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @page { size: A4; margin: 16mm; }
     @media print {
@@ -1768,67 +1723,29 @@ function registerExtRoutes(extId: string) {
 }
 
 function pgAdminDash() {
-  setActive("/admin/dashboard");
-  const cfg = Store.getSet();
-  const exts = Store.getExts();
-  const st = Store.stats();
-  const mo = Store.monthly(null, new Date().getFullYear());
-  setTopbar("Tableau de Bord Global", "Vue d'ensemble du réseau", "Admin");
-
-  const maxC = Math.max(1, ...exts.map((e) => Store.stats(e.id).cultes));
-
-  render(`
-    <div class="page-header">
-      <div><h1>Vue Générale</h1><p>${cfg.nom || "Emerge in Christ"} · ${exts.length} extension(s)</p></div>
-      <button class="btn btn-secondary btn-sm" onclick="navTo('/admin/extensions')">${icon("settings")} Gérer</button>
-    </div>
-    <div class="grid-4 mb-20">
-      ${statCard("building", "Extensions", String(exts.length), "Sites actifs")}
-      ${statCard("fileText", "Cultes", String(st.cultes), "Total réseau")}
-      ${statCard("users", "Présence moy.", String(st.presence), "Par culte")}
-      ${statCard("userCheck", "Convertis", String(st.nouveaux), "Total réseau")}
-    </div>
-    <div class="grid-2 mb-20">
-      <div class="card"><div class="form-section-title mb-12">Présence mensuelle ${new Date().getFullYear()}</div><div class="chart-wrap"><canvas id="chP"></canvas></div></div>
-      <div class="card"><div class="form-section-title mb-12">Offrandes mensuelles ${new Date().getFullYear()}</div><div class="chart-wrap"><canvas id="chO"></canvas></div></div>
-    </div>
-    <div class="form-section-title mb-12">Performance par Extension</div>
-    <div class="grid-3">
-      ${exts
-        .map((ext) => {
-          const s = Store.stats(ext.id);
-          return `<div class="ext-card" style="--ext-color:${ext.couleur}">
-            <div class="ext-card-name">${ext.nom}</div>
-            <div class="ext-card-ville">${icon("mapPin")} ${ext.ville}, ${ext.pays}</div>
-            <div class="ext-mini-stats mb-12">
-              <div><div class="ext-stat-val">${s.cultes}</div><div class="ext-stat-lbl">Cultes</div></div>
-              <div><div class="ext-stat-val">${s.presence}</div><div class="ext-stat-lbl">Moy.</div></div>
-              <div><div class="ext-stat-val">${s.nouveaux}</div><div class="ext-stat-lbl">Conv.</div></div>
-            </div>
-            <div class="text-xs text-muted mb-4">Activité relative</div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${Math.round((s.cultes / maxC) * 100)}%;background:${ext.couleur}"></div></div>
-          </div>`;
-        })
-        .join("")}
-    </div>
-  `);
-
-  const lb = mo.map((m) => m.lbl);
-  chartBar("chP", lb, mo.map((m) => m.presence), "Présence", "rgba(139,92,246,.7)");
-  chartBar("chO", lb, mo.map((m) => m.offrandes), "Offrandes", "rgba(245,158,11,.7)");
+  pgAdminDashPage({
+    setActive,
+    setTopbar,
+    render,
+    icon,
+    statCard,
+    chartBar,
+    getCfg: () => Store.getSet(),
+    getExts: () => Store.getExts(),
+    stats: (extId) => Store.stats(extId ?? null),
+    monthly: (extId, yr) => Store.monthly(extId, yr),
+  });
 }
 
 function pgAdminExts() {
-  setActive("/admin/extensions");
-  setTopbar("Extensions", "Gestion du réseau", "Admin");
-  const exts = Store.getExts();
-  render(`
-    <div class="page-header">
-      <div><h1>Extensions</h1><p>${exts.length} extension(s)</p></div>
-      <button class="btn btn-primary" onclick="openExtForm(null)">${icon("plus")} Nouvelle Extension</button>
-    </div>
-    <div class="grid-auto">${exts.map(extCard).join("")}</div>
-  `);
+  pgAdminExtsPage({
+    setActive,
+    setTopbar,
+    render,
+    icon,
+    getExts: () => Store.getExts(),
+    extCard,
+  });
 }
 
 function pgAdminRaps(params: Record<string, string> = {}) {
@@ -1973,56 +1890,14 @@ function pgAdminConvertis() {
 }
 
 function pgAdminSettings() {
-  setActive("/admin/settings");
-  setTopbar("Paramètres", "Configuration", "Admin");
-  const cfg = Store.getSet();
-  const socialPct = cfg.socialPct ?? 10;
-
-  render(`
-    <div class="page-header">
-      <div><h1>Paramètres</h1><p>Configuration globale</p></div>
-    </div>
-    <div class="grid-2 mb-20">
-      <div class="card">
-        <div class="form-section-title mb-12">Identité du réseau</div>
-        <div class="form-row">
-          <label>Nom de l'organisation</label>
-          <input id="set-nom" value="${cfg.nom || ""}" />
-        </div>
-        <div class="form-row">
-          <label>Mot de passe administrateur</label>
-          <input id="set-admin-pw" type="password" value="${cfg.adminPw || ""}" />
-        </div>
-        <button class="btn btn-primary mt-12" onclick="saveSettings()">${icon("save")} Enregistrer</button>
-      </div>
-      <div class="card">
-        <div class="form-section-title mb-12">Logo</div>
-        <div class="form-row">
-          <label>Charger un logo (PNG/JPG)</label>
-          <input type="file" id="set-logo" accept="image/*" onchange="handleLogoUpload(this)" />
-        </div>
-        ${Store.getLogo() ? `<button class="btn btn-danger btn-sm mt-8" onclick="clearLogo()">${icon("trash")} Supprimer le logo</button>` : ""}
-      </div>
-    </div>
-    <div class="card mb-20">
-      <div class="form-section-title mb-12">Paramètres financiers</div>
-      <div class="form-row">
-        <label>Pourcentage du prélèvement social (%)</label>
-        <input id="set-social-pct" type="number" min="0" max="100" value="${socialPct}" />
-        <small style="color: var(--text2)">Ce pourcentage sera appliqué aux offrandes pour le prélèvement social. Laissez vide pour 10% par défaut.</small>
-      </div>
-      <button class="btn btn-primary mt-12" onclick="saveSettings()">${icon("save")} Enregistrer</button>
-    </div>
-    <div class="card">
-      <div class="form-section-title mb-12">Données</div>
-      <div class="flex gap-12">
-        <button class="btn btn-secondary" onclick="exportData()">${icon("save")} Exporter les données</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">${icon("upload")} Importer les données</button>
-        <input type="file" id="import-file" accept=".json" class="hidden" onchange="importData(this)" />
-        <button class="btn btn-danger" onclick="resetData()">⚠ Réinitialiser tout</button>
-      </div>
-    </div>
-  `);
+  pgAdminSettingsPage({
+    setActive,
+    setTopbar,
+    render,
+    icon,
+    getCfg: () => Store.getSet(),
+    getLogo: () => Store.getLogo(),
+  });
 }
 
 function saveSettings() {
@@ -2117,7 +1992,7 @@ function pgExtDash(extId: string) {
     </div>
     <div class="grid-2 mb-20">
       <div class="card"><div class="form-section-title mb-12">Présence mensuelle ${new Date().getFullYear()}</div><div class="chart-wrap"><canvas id="chP"></canvas></div></div>
-      <div class="card"><div class="form-section-title mb-12">Offrandes mensuelles ${new Date().getFullYear()}</div><div class="chart-wrap"><canvas id="></div></divchO"></canvas>
+      <div class="card"><div class="form-section-title mb-12">Offrandes mensuelles ${new Date().getFullYear()}</div><div class="chart-wrap"><canvas id="chO"></canvas></div></div>
     </div>
   `);
 
@@ -2134,8 +2009,7 @@ function pgExtNew(extId: string) {
   const ext = Store.getExt(extId);
   setTopbar("Nouveau Rapport", ext?.nom || "", "");
 
-  const params = curParams();
-  const rapId = params.rap;
+  // const params = curParams(); // reserved for future edit-mode support
   // Only reset if explicitly editing an existing rap or no form data exists
   if (!rapFormData) {
     rapFormData = {
@@ -2247,7 +2121,7 @@ function renderStepContent(r: Rapport, sym: string): string {
           <button class="btn btn-secondary" onclick="goToStep(0)">← Précédent</button>
           <button class="btn btn-primary" onclick="saveStep1()">Suivant →</button>
         </div>`;
-    case 2:
+    case 2: {
       const socialPct = (Store.getSet().socialPct ?? 10) / 100;
       const ord = r.offrandes?.ordinaires || 0;
       const ora = r.offrandes?.orateur || 0;
@@ -2298,7 +2172,8 @@ function renderStepContent(r: Rapport, sym: string): string {
           <button class="btn btn-secondary" onclick="goToStep(1)">← Précédent</button>
           <button class="btn btn-primary" onclick="saveStep2()">Suivant →</button>
         </div>`;
-    case 3:
+    }
+    case 3: {
       const totalDep = (r.depenses || []).reduce((s, d) => s + d.montant, 0);
       return `
         <div class="form-section-title">Dépenses (${sym})</div>
@@ -2314,6 +2189,7 @@ function renderStepContent(r: Rapport, sym: string): string {
           <button class="btn btn-secondary" onclick="goToStep(2)">← Précédent</button>
           <button class="btn btn-primary" onclick="saveStep3()">Suivant →</button>
         </div>`;
+    }
     case 4:
       return `
         <div class="form-section-title">ACCUEIL DES NOUVEAUX</div>
@@ -2404,9 +2280,14 @@ function updateOffTotals() {
   const sym = ext?.symbole || "€";
 
   document.getElementById("rf-off-total")!.textContent = fmt(tot, sym);
-  document.getElementById("rf-vent-dim")!.textContent = fmt(dim * 0.1, sym);
-  document.getElementById("rf-vent-soc")!.textContent = fmt(tot * 0.1, sym);
-  document.getElementById("rf-vent-reste")!.textContent = fmt(tot * 0.8, sym);
+
+  // Backward-compat: these IDs may not exist depending on UI version.
+  const eDim = document.getElementById("rf-vent-dim");
+  if (eDim) eDim.textContent = fmt(dim * 0.1, sym);
+  const eSoc = document.getElementById("rf-vent-soc");
+  if (eSoc) eSoc.textContent = fmt(tot * 0.1, sym);
+  const eRes = document.getElementById("rf-vent-reste");
+  if (eRes) eRes.textContent = fmt(tot * 0.8, sym);
 }
 
 function saveStep2() {
@@ -2457,6 +2338,7 @@ function saveStep2() {
 }
 
 function updateDepTotal(_idx: number) {
+  void _idx;
   // Recalcule simplement le total à partir des champs actuels
   const depRows = document.querySelectorAll(".dep-row");
   let total = 0;
@@ -2550,11 +2432,28 @@ function saveStep5() {
     tresorier: (document.getElementById("rf-treso") as HTMLInputElement).value,
     pasteur: (document.getElementById("rf-past") as HTMLInputElement).value,
   };
-  Store.saveRap(rapFormData);
-  toast("Rapport enregistré avec succès", "success");
-  rapFormData = null;
-  rapStep = 0;
-  navTo("/ext/rapports");
+
+  // Persist via application layer (centralized business rules) when available.
+  const toSave = rapFormData;
+  Promise.resolve()
+    .then(async () => {
+      if (appCtx) {
+        const res = await appCtx.saveRapport(toSave);
+        if (!res.ok) throw new Error(res.message);
+      } else {
+        Store.saveRap(toSave);
+      }
+    })
+    .then(() => {
+      toast("Rapport enregistré avec succès", "success");
+      rapFormData = null;
+      rapStep = 0;
+      navTo("/ext/rapports");
+    })
+    .catch((e) => {
+      toast("Erreur lors de l'enregistrement du rapport", "error");
+      console.error(e);
+    });
 }
 
 function pgExtRaps(params: Record<string, string> = {}) {
@@ -2632,7 +2531,6 @@ window.doDeleteRap = function (id: string) {
 function pgExtBilans(extId: string) {
   setActive("/ext/bilans");
   const ext = Store.getExt(extId);
-  const st = Store.stats(extId);
   const yr = new Date().getFullYear();
   const mo = Store.monthly(extId, yr);
   const socialPct = Store.getSet().socialPct || 10;
@@ -2761,7 +2659,6 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
   const { socialPct } = params;
   const ext = Store.getExt(extId);
   const logo = Store.getLogo();
-  const cfg = Store.getSet();
   const yr = new Date().getFullYear();
 
   let periodLabel = `${yr}`;
@@ -2851,7 +2748,7 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bilan Financier - ${ext?.nom || "EIC"} - ${periodLabel}</title>
-  <script src="https://cdn.tailwindcss.com"><\/script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @page { size: A4; margin: 16mm; }
     @media print {
@@ -3036,9 +2933,29 @@ window.confirmDelExt = function (id: string) {
     <div class="modal-body"><p style="color:var(--text2)">Supprimer <strong style="color:var(--text)">${ext.nom}</strong> et tous ses rapports ? Action irréversible.</p></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-danger" onclick="closeModal();Store.delExt('${id}');toast('Extension supprimée','success');pgAdminExts()">Confirmer</button>
+      <button class="btn btn-danger" onclick="closeModal();(window as any)._delExt('${id}')">Confirmer</button>
     </div>`
   );
+};
+
+(window as any)._delExt = function (id: string) {
+  Promise.resolve()
+    .then(async () => {
+      if (appCtx) {
+        const res = await appCtx.deleteExtension(id);
+        if (!res.ok) throw new Error(res.message);
+      } else {
+        Store.delExt(id);
+      }
+    })
+    .then(() => {
+      toast("Extension supprimée", "success");
+      pgAdminExts();
+    })
+    .catch((e) => {
+      toast("Erreur lors de la suppression", "error");
+      console.error(e);
+    });
 };
 
 window.openExtForm = function (extId: string | null) {
@@ -3127,10 +3044,27 @@ window.saveExtForm = function (extId: string) {
     tresorier: g("ef-tres"),
     password: pw,
   };
-  Store.saveExt(ext);
-  closeModal();
-  toast(`Extension "${nom}" enregistrée`, "success");
-  pgAdminExts();
+
+  Promise.resolve()
+    .then(async () => {
+      if (appCtx) {
+        const res = await appCtx.saveExtension(ext);
+        if (!res.ok) throw new Error(res.message);
+        // Keep UI list consistent (local cache)
+        localStorage.setItem("eic_ext", JSON.stringify(Store.getExts()));
+      } else {
+        Store.saveExt(ext);
+      }
+    })
+    .then(() => {
+      closeModal();
+      toast(`Extension "${nom}" enregistrée`, "success");
+      pgAdminExts();
+    })
+    .catch((e) => {
+      toast("Erreur lors de l'enregistrement", "error");
+      console.error(e);
+    });
 };
 
 window.adminRapFilter = function (sel: HTMLSelectElement, field: string) {
@@ -3146,8 +3080,10 @@ window.doExportPDF = doExportPDF;
 window.doExportDOCX = doExportDOCX;
 
 export async function initApp() {
-  // Firebase => localStorage (source de vérité distante)
-  await syncFromFirebase((msg) => toast(msg, "error"));
+  appCtx = await createAppContext();
+
+  // Supabase => localStorage (source de vérité distante)
+  await syncFromSupabase((msg) => toast(msg, "error"));
   // Optionnel: seed de données de démo en local uniquement si DEMO_MODE=true
   seedIfNeeded();
 
@@ -3202,6 +3138,7 @@ export async function initApp() {
   window.pgAdminExts = pgAdminExts;
   window.saveSettings = saveSettings;
   window.clearLogo = clearLogo;
+  window.handleLogoUpload = handleLogoUpload;
   window.exportData = exportData;
   window.importData = importData;
   window.resetData = resetData;

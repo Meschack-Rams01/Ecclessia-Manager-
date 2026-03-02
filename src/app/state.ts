@@ -1,5 +1,5 @@
 import { DEF_EXTS, K, type Extension } from "./constants";
-import { saveExtToFirebase, deleteExtFromFirebase, saveRapToFirebase, deleteRapFromFirebase } from "./firebase";
+import { getSupabaseClient } from "../infrastructure/supabase/client";
 
 export type RapportDepense = { motif: string; montant: number };
 export type RapportConverti = { nom: string; tel?: string };
@@ -82,13 +82,13 @@ export function seedIfNeeded(): void {
           },
           offrandes: { ordinaires: ord, orateur: or, dimes, actionsGrace: ag, total: tot },
           ventilation: {
-            ordinaires: { dime: 0, social: 0, reste: ord },
+            ordinaires: { dime: +Number(ord * 0.1).toFixed(2), social: 0, reste: +Number(ord * 0.9).toFixed(2) },
             orateur: { dime: 0, social: 0, reste: or },
             dimes: { dime: +Number(dimes * 0.1).toFixed(2), social: 0, reste: +Number(dimes * 0.9).toFixed(2) },
-            actionsGrace: { dime: 0, social: 0, reste: ag },
-            totalDime: +Number(dimes * 0.1).toFixed(2),
+            actionsGrace: { dime: +Number(ag * 0.1).toFixed(2), social: 0, reste: +Number(ag * 0.9).toFixed(2) },
+            totalDime: +Number(ord * 0.1 + dimes * 0.1 + ag * 0.1).toFixed(2),
             totalSocial: 0,
-            reste: +Number(ord + or + dimes * 0.9 + ag).toFixed(2),
+            reste: +Number(ord * 0.9 + or + dimes * 0.9 + ag * 0.9).toFixed(2),
           },
           depenses: [
             { motif: "Transport", montant: Math.floor(dep * 0.4) },
@@ -129,9 +129,30 @@ export const Store = {
     if (i >= 0) a[i] = ext;
     else a.push(ext);
     localStorage.setItem(K.EXT, JSON.stringify(a));
-    // Sync to Firebase in background
-    saveExtToFirebase(ext).catch(console.error);
+    // Sync to Supabase in background
+    this.syncExtToSupabase(ext);
   },
+
+  /**
+   * Sync extension to Supabase
+   */
+  syncExtToSupabase(ext: Extension): void {
+    const doSync = async () => {
+      try {
+        const client = getSupabaseClient();
+        const { error } = await client
+          .from("extensions")
+          .upsert({ id: ext.id, data: ext }, { onConflict: "id" });
+        if (error) {
+          console.error("Error syncing extension to Supabase:", error);
+        }
+      } catch (e) {
+        console.error("Exception syncing extension to Supabase:", e);
+      }
+    };
+    doSync();
+  },
+
   delExt(id: string): void {
     localStorage.setItem(
       K.EXT,
@@ -141,8 +162,26 @@ export const Store = {
       K.RAP,
       JSON.stringify(this.getRaps().filter((r) => r.extensionId !== id)),
     );
-    // Sync deletion to Firebase in background
-    deleteExtFromFirebase(id).catch(console.error);
+    // Sync deletion to Supabase in background
+    this.deleteExtFromSupabase(id);
+  },
+
+  /**
+   * Delete extension from Supabase
+   */
+  deleteExtFromSupabase(extId: string): void {
+    const doDelete = async () => {
+      try {
+        const client = getSupabaseClient();
+        const { error } = await client.from("extensions").delete().eq("id", extId);
+        if (error) {
+          console.error("Error deleting extension from Supabase:", error);
+        }
+      } catch (e) {
+        console.error("Exception deleting extension from Supabase:", e);
+      }
+    };
+    doDelete();
   },
 
   // Rapports

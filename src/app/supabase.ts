@@ -1,22 +1,40 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { K, type Extension } from "./constants";
 import type { Rapport } from "./state";
+import { getSupabaseClient, isSupabaseConfigured as checkSupabaseConfigured } from "../infrastructure/supabase/client";
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+/**
+ * Get the Supabase client (from infrastructure)
+ * This ensures only one instance is created
+ */
+export function getClient(): SupabaseClient {
+  return getSupabaseClient();
+}
 
-export const supabase: SupabaseClient | null =
-  typeof url === "string" && url && typeof key === "string" && key
-    ? createClient(url, key)
-    : null;
+/**
+ * Check if Supabase is configured
+ */
+export function isSupabaseConfigured(): boolean {
+  return checkSupabaseConfigured();
+}
+
+// Legacy export for backward compatibility
+// Prefer using getClient() instead
+export const supabase: SupabaseClient | null = (() => {
+  try {
+    return getSupabaseClient();
+  } catch {
+    return null;
+  }
+})();
 
 /**
  * Save extension to Supabase (for admin use)
  */
 export async function saveExtToSupabase(ext: Extension): Promise<boolean> {
-  if (!supabase) return false;
+  const client = getClient();
   try {
-    const { error } = await supabase
+    const { error } = await client
       .from("extensions")
       .upsert({ id: ext.id, data: ext }, { onConflict: "id" });
     if (error) {
@@ -34,9 +52,9 @@ export async function saveExtToSupabase(ext: Extension): Promise<boolean> {
  * Delete extension from Supabase (for admin use)
  */
 export async function deleteExtFromSupabase(extId: string): Promise<boolean> {
-  if (!supabase) return false;
+  const client = getClient();
   try {
-    const { error } = await supabase
+    const { error } = await client
       .from("extensions")
       .delete()
       .eq("id", extId);
@@ -55,9 +73,9 @@ export async function deleteExtFromSupabase(extId: string): Promise<boolean> {
  * Save rapport to Supabase
  */
 export async function saveRapToSupabase(rap: Rapport): Promise<boolean> {
-  if (!supabase) return false;
+  const client = getClient();
   try {
-    const { error } = await supabase
+    const { error } = await client
       .from("rapports")
       .upsert({ id: rap.id, data: rap }, { onConflict: "id" });
     if (error) {
@@ -75,9 +93,9 @@ export async function saveRapToSupabase(rap: Rapport): Promise<boolean> {
  * Delete rapport from Supabase
  */
 export async function deleteRapFromSupabase(rapId: string): Promise<boolean> {
-  if (!supabase) return false;
+  const client = getClient();
   try {
-    const { error } = await supabase
+    const { error } = await client
       .from("rapports")
       .delete()
       .eq("id", rapId);
@@ -94,14 +112,13 @@ export async function deleteRapFromSupabase(rapId: string): Promise<boolean> {
 
 /**
  * Subscribe to real-time extension changes
- * Returns the subscription object that can be used to unsubscribe
  */
 export function subscribeToExtensions(
   onExtChange: (ext: Extension | null, action: "INSERT" | "UPDATE" | "DELETE") => void
 ): (() => void) | null {
-  if (!supabase) return null;
+  const client = getClient();
 
-  const channel = supabase
+  const channel = client
     .channel("extensions-changes")
     .on(
       "postgres_changes",
@@ -112,8 +129,6 @@ export function subscribeToExtensions(
       },
       (payload) => {
         if (payload.eventType === "DELETE") {
-          // For DELETE, payload.old contains the old record
-          const oldExt = (payload.old as { id: string; data: Extension })?.data;
           onExtChange(null, "DELETE");
         } else if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
           const newExt = (payload.new as { id: string; data: Extension })?.data;
@@ -125,9 +140,8 @@ export function subscribeToExtensions(
     )
     .subscribe();
 
-  // Return unsubscribe function
   return () => {
-    supabase.removeChannel(channel);
+    client.removeChannel(channel);
   };
 }
 
@@ -137,9 +151,9 @@ export function subscribeToExtensions(
 export function subscribeToRapports(
   onRapChange: (rap: Rapport | null, action: "INSERT" | "UPDATE" | "DELETE") => void
 ): (() => void) | null {
-  if (!supabase) return null;
+  const client = getClient();
 
-  const channel = supabase
+  const channel = client
     .channel("rapports-changes")
     .on(
       "postgres_changes",
@@ -162,7 +176,7 @@ export function subscribeToRapports(
     .subscribe();
 
   return () => {
-    supabase.removeChannel(channel);
+    client.removeChannel(channel);
   };
 }
 
@@ -171,15 +185,15 @@ export function subscribeToRapports(
  * Supabase est la source de vérité; localStorage sert de cache côté client.
  */
 export async function syncFromSupabase(showError?: (msg: string) => void): Promise<void> {
-  if (!supabase) return;
+  const client = getClient();
   try {
-    const { data: extRows, error: extErr } = await supabase.from("extensions").select("data");
+    const { data: extRows, error: extErr } = await client.from("extensions").select("data");
     if (!extErr && extRows) {
       const exts = extRows.map((r: any) => r.data).filter(Boolean);
       if (exts.length) localStorage.setItem(K.EXT, JSON.stringify(exts));
     }
 
-    const { data: rapRows, error: rapErr } = await supabase.from("rapports").select("data");
+    const { data: rapRows, error: rapErr } = await client.from("rapports").select("data");
     if (!rapErr && rapRows) {
       const raps = rapRows.map((r: any) => r.data as Rapport).filter(Boolean);
       if (raps.length) localStorage.setItem(K.RAP, JSON.stringify(raps));
@@ -189,4 +203,3 @@ export async function syncFromSupabase(showError?: (msg: string) => void): Promi
     if (showError) showError("Erreur de synchronisation Supabase, données locales utilisées");
   }
 }
-

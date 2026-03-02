@@ -40,7 +40,9 @@ export type Extension = {
   coordinateur: string;
   secretaire: string;
   tresorier: string;
-  password: string;
+  // Password removed - authentication now handled via Supabase Auth
+  // Extension is linked to user account via user_metadata.extension_id
+  password?: string; // Deprecated: kept for backward compatibility
   devise: string;
   symbole: string;
 };
@@ -62,7 +64,8 @@ export const DEF_EXTS: Extension[] = [
     coordinateur: "Frère David Mutombo",
     secretaire: "Sœur Rachel Lukusa",
     tresorier: "Frère Jean-Paul Ngoy",
-    password: "nic123",
+    // Default password for backward compatibility
+    password: "nicosie123",
     devise: "EUR",
     symbole: "€",
   },
@@ -82,7 +85,8 @@ export const DEF_EXTS: Extension[] = [
     coordinateur: "Frère Samuel Banza",
     secretaire: "Sœur Esther Mwamba",
     tresorier: "Frère Isaac Tshimanga",
-    password: "lim123",
+    // Default password for backward compatibility
+    password: "limassol123",
     devise: "EUR",
     symbole: "€",
   },
@@ -102,7 +106,8 @@ export const DEF_EXTS: Extension[] = [
     coordinateur: "Frère Caleb Mbombo",
     secretaire: "Sœur Miriam Kavula",
     tresorier: "Frère Thomas Luzolo",
-    password: "lar123",
+    // Default password for backward compatibility
+    password: "larnaca123",
     devise: "EUR",
     symbole: "€",
   },
@@ -121,6 +126,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { icon: "building", lbl: "Extensions", path: "/admin/extensions" },
       { icon: "fileText", lbl: "Tous les Rapports", path: "/admin/rapports" },
       { icon: "chartBar", lbl: "Bilans Comparatifs", path: "/admin/bilans" },
+      { icon: "wallet", lbl: "Bilans Financiers", path: "/admin/bilans/financier" },
       { icon: "users", lbl: "Nouveaux Convertis", path: "/admin/convertis" },
     ],
   },
