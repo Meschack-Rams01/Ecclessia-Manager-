@@ -4331,8 +4331,20 @@ export async function initApp() {
   
   // Multi-currency offering functions
   window.addOffreRow = function(type: string) {
-    const container = document.getElementById(`rf-${type}-entries`);
-    if (!container) return;
+    if (!rapFormData) return;
+    // Map short type to container ID
+    const typeMap: Record<string, string> = {
+      'ordinaires': 'ord',
+      'orateur': 'ora', 
+      'dimes': 'dim',
+      'actionsGrace': 'ag'
+    };
+    const containerId = `rf-${typeMap[type] || type}-entries`;
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error('Container not found:', containerId);
+      return;
+    }
     const ext = Store.getExt(rapFormData?.extensionId || '');
     const devise = ext?.devise || 'EUR';
     const div = document.createElement('div');
