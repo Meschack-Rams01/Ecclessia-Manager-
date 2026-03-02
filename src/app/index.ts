@@ -1827,7 +1827,15 @@ function pgAdminBilansFinancier() {
       <p class="text-gray-500 text-center py-8">Aucune dépense supplémentaire enregistrée pour cette période.</p>
       `}
     </div>
-    ` : ''}
+    ` : `
+    <div class="card mb-12">
+      <div class="form-section-title mb-12">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
+      <div class="text-center py-8 text-gray-500">
+        <p class="mb-4">Sélectionnez une extension ci-dessus pour gérer les dépenses supplémentaires.</p>
+        <p class="text-sm">Ces dépenses sont enregistrées par extension (loyer, matériel, aide sociale...)</p>
+      </div>
+    </div>
+    `}
   `);
 
   // Store current bilan params for export
