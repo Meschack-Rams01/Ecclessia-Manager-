@@ -38,7 +38,7 @@ export type Rapport = {
 
 export type Session = { role: "admin" } | { role: "extension"; extId: string };
 
-export type Settings = { nom: string; adminPw: string; socialPct?: number };
+export type Settings = { nom: string; adminPw: string; adminPwHash?: string; socialPct?: number };
 
 const DEMO_MODE = false;
 

@@ -10,6 +10,7 @@ import { openModal, closeModal } from "./ui/modal";
 import { pgAdminExtsPage } from "./pages/admin/pgAdminExtsPage";
 import { pgAdminDashPage } from "./pages/admin/pgAdminDashPage";
 import { pgAdminSettingsPage } from "./pages/admin/pgAdminSettingsPage";
+import { escapeHtml, validateInput } from "./security";
 
 declare global {
   interface Window {
@@ -89,7 +90,17 @@ function setTopbar(title: string, sub: string = "", badge: string = "") {
 }
 
 function render(html: string) {
-  document.getElementById("page")!.innerHTML = html;
+  const page = document.getElementById("page")!;
+  page.innerHTML = html;
+  page.scrollTop = 0;
+}
+
+function renderSafe(html: string) {
+  const page = document.getElementById("page")!;
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  page.innerHTML = '';
+  page.appendChild(template.content);
 }
 
 function buildNav(def: typeof ADMIN_NAV) {
@@ -2600,10 +2611,32 @@ function pgAdminSettings() {
 }
 
 function saveSettings() {
-  const nom = (document.getElementById("set-nom") as HTMLInputElement).value.trim();
-  const adminPw = (document.getElementById("set-admin-pw") as HTMLInputElement).value.trim();
-  const socialPctInput = (document.getElementById("set-social-pct") as HTMLInputElement).value;
-  const socialPct = socialPctInput ? parseInt(socialPctInput) : 10;
+  const nomInput = (document.getElementById("set-nom") as HTMLInputElement);
+  const adminPwInput = (document.getElementById("set-admin-pw") as HTMLInputElement);
+  const socialPctInput = document.getElementById("set-social-pct") as HTMLInputElement;
+  
+  const nom = nomInput.value.trim();
+  const adminPw = adminPwInput.value.trim();
+  const socialPct = socialPctInput ? parseInt(socialPctInput.value) : 10;
+
+  if (!validateInput(nom, 100)) {
+    toast("Nom invalide ou trop long", "error");
+    nomInput.focus();
+    return;
+  }
+
+  if (adminPw && adminPw.length < 4) {
+    toast("Le mot de passe doit contenir au moins 4 caractères", "error");
+    adminPwInput.focus();
+    return;
+  }
+
+  if (socialPct < 0 || socialPct > 100) {
+    toast("Le pourcentage social doit être entre 0 et 100", "error");
+    socialPctInput.focus();
+    return;
+  }
+
   Store.saveSet({ nom, adminPw, socialPct });
   updateLogoUI();
   toast("Paramètres enregistrés", "success");
