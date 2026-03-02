@@ -1789,7 +1789,7 @@ function pgAdminBilansFinancier() {
     <div class="card mb-12">
       <div class="flex justify-between items-center mb-12">
         <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
-        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extIdToUse}')">+ Ajouter</button>
+        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extIdToUse || ''}')">+ Ajouter</button>
       </div>
       ${data.depSupp && data.depSupp.length > 0 ? `
       <table class="w-full">
@@ -3469,7 +3469,7 @@ function pgExtBilans(extId: string) {
     <div class="card mb-12">
       <div class="flex justify-between items-center mb-12">
         <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
-        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extId}')">+ Ajouter</button>
+        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extId || ''}')">+ Ajouter</button>
       </div>
       ${currentYearData.depSupp && currentYearData.depSupp.length > 0 ? `
       <table class="w-full">
@@ -4386,6 +4386,7 @@ export async function initApp() {
   };
 
   window.showAddDepSuppModal = function(extIdOverride?: string) {
+    console.log('showAddDepSuppModal called with:', extIdOverride);
     // Remove any existing modal first to avoid duplicate IDs
     const existingModal = document.querySelector('.modal-overlay');
     if (existingModal) existingModal.remove();
