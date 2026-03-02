@@ -4386,7 +4386,6 @@ export async function initApp() {
   };
 
   window.showAddDepSuppModal = function(extIdOverride?: string) {
-    console.log('showAddDepSuppModal called with:', extIdOverride);
     // Remove any existing modal first to avoid duplicate IDs
     const existingModal = document.querySelector('.modal-overlay');
     if (existingModal) existingModal.remove();
