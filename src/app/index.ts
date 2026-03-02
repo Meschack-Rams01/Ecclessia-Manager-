@@ -1,6 +1,6 @@
 import { Store, Auth, seedIfNeeded, type Rapport } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
-import { fmt, fmtD, fmtTRY, uid, mName } from "./utils";
+import { fmt, fmtD, fmtTRY, fmtCur, uid, mName } from "./utils";
 import { icon } from "./icons";
 import { syncFromSupabase, subscribeToExtensions } from "./supabase";
 import { createAppContext, type AppContext } from "./context";
@@ -751,121 +751,120 @@ function doExportHTML(rapId: string) {
   const v = r.ventilation;
   const socialPct = Store.getSet().socialPct || 10;
   const logo = Store.getLogo();
+  const sym = ext?.symbole || "€";
+  const fc = (val: unknown) => fmtCur(val, sym);
 
   const repartitionTable = `
-    <table class="w-full border-collapse text-sm">
+    <table class="repartition-table">
       <thead>
-        <tr class="bg-gray-100">
-          <th class="border border-black px-3 py-2 text-left font-bold">Type de recette</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Dîme 10 %</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Social (${socialPct}%)</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Reste</th>
+        <tr>
+          <th class="txt-left">Type de recette</th>
+          <th class="txt-right">Montant (${sym})</th>
+          <th class="txt-right">Dîme 10 %</th>
+          <th class="txt-right">Social (${socialPct}%)</th>
+          <th class="txt-right">Reste</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td class="border border-black px-3 py-2">Offrandes ordinaires</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.ordinaires || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.ordinaires.dime || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.ordinaires.social || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.ordinaires.reste || 0)}</td>
+          <td>Offrandes ordinaires</td>
+          <td class="txt-right">${fc(r.offrandes?.ordinaires || 0)}</td>
+          <td class="txt-right">${fc(v?.ordinaires.dime || 0)}</td>
+          <td class="txt-right">${fc(v?.ordinaires.social || 0)}</td>
+          <td class="txt-right">${fc(v?.ordinaires.reste || 0)}</td>
         </tr>
         <tr>
-          <td class="border border-black px-3 py-2">Offrandes pour Orateur</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.orateur || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.orateur.dime || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.orateur.social || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.orateur.reste || 0)}</td>
+          <td>Offrandes pour Orateur</td>
+          <td class="txt-right">${fc(r.offrandes?.orateur || 0)}</td>
+          <td class="txt-right">${fc(v?.orateur.dime || 0)}</td>
+          <td class="txt-right">${fc(v?.orateur.social || 0)}</td>
+          <td class="txt-right">${fc(v?.orateur.reste || 0)}</td>
         </tr>
         <tr>
-          <td class="border border-black px-3 py-2">Dîmes</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.dimes || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.dimes.dime || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.dimes.social || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.dimes.reste || 0)}</td>
+          <td>Dîmes</td>
+          <td class="txt-right">${fc(r.offrandes?.dimes || 0)}</td>
+          <td class="txt-right">${fc(v?.dimes.dime || 0)}</td>
+          <td class="txt-right">${fc(v?.dimes.social || 0)}</td>
+          <td class="txt-right">${fc(v?.dimes.reste || 0)}</td>
         </tr>
         <tr>
-          <td class="border border-black px-3 py-2">Actions de Grâce</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.actionsGrace || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.dime || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.social || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.actionsGrace.reste || 0)}</td>
+          <td>Actions de Grâce</td>
+          <td class="txt-right">${fc(r.offrandes?.actionsGrace || 0)}</td>
+          <td class="txt-right">${fc(v?.actionsGrace.dime || 0)}</td>
+          <td class="txt-right">${fc(v?.actionsGrace.social || 0)}</td>
+          <td class="txt-right">${fc(v?.actionsGrace.reste || 0)}</td>
         </tr>
-        <tr class="bg-gray-200 font-bold">
-          <td class="border border-black px-3 py-2">TOTAL</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.offrandes?.total || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.totalDime || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.totalSocial || 0)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(v?.reste || 0)}</td>
+        <tr class="row-total">
+          <td>TOTAL</td>
+          <td class="txt-right">${fc(r.offrandes?.total || 0)}</td>
+          <td class="txt-right">${fc(v?.totalDime || 0)}</td>
+          <td class="txt-right">${fc(v?.totalSocial || 0)}</td>
+          <td class="txt-right">${fc(v?.reste || 0)}</td>
         </tr>
       </tbody>
     </table>`;
 
   const depensesTable = r.depenses?.length ? `
-    <table class="w-full border-collapse text-sm">
+    <table class="depenses-table">
       <thead>
-        <tr class="bg-gray-100">
-          <th class="border border-black px-3 py-2 text-center font-bold w-12">N°</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
-          <th class="border border-black px-3 py-2 text-left font-bold">Motif</th>
+        <tr>
+          <th class="txt-center" style="width:40px">N°</th>
+          <th class="txt-right">Montant (${sym})</th>
+          <th class="txt-left">Motif</th>
         </tr>
       </thead>
       <tbody>
         ${r.depenses!.map((d, i) => `
           <tr>
-            <td class="border border-black px-3 py-2 text-center">${i + 1}</td>
-            <td class="border border-black px-3 py-2 text-right">${fmtTRY(d.montant)}</td>
-            <td class="border border-black px-3 py-2">${d.motif}</td>
+            <td class="txt-center">${i + 1}</td>
+            <td class="txt-right">${fc(d.montant)}</td>
+            <td>${d.motif}</td>
           </tr>
         `).join("")}
-        <tr class="bg-gray-200 font-bold">
-          <td class="border border-black px-3 py-2">Total</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.totalDepenses || 0)}</td>
-          <td class="border border-black px-3 py-2"></td>
-        </tr>
-        <tr class="bg-gray-200 font-bold">
-          <td class="border border-black px-3 py-2">Reste final</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(r.soldeFinal || 0)}</td>
-          <td class="border border-black px-3 py-2"></td>
+        <tr class="row-total">
+          <td colspan="1">Total</td>
+          <td class="txt-right">${fc(r.totalDepenses || 0)}</td>
+          <td></td>
         </tr>
       </tbody>
     </table>` : `
-    <p class="text-gray-500 italic">Aucune dépense</p>
-    <p class="font-bold mt-2">Reste final: ${fmtTRY(r.soldeFinal || 0)}</p>`;
+    <p style="color:#6b7280;font-style:italic">Aucune dépense enregistrée.</p>`;
 
   const nouveauxTable = r.nouveaux?.length ? `
-    <table class="w-full border-collapse text-sm">
+    <table class="nouveaux-table">
       <thead>
-        <tr class="bg-gray-100">
-          <th class="border border-black px-3 py-2 text-left font-bold">Noms</th>
-          <th class="border border-black px-3 py-2 text-left font-bold">Téléphone</th>
+        <tr>
+          <th class="txt-left">Noms</th>
+          <th class="txt-left">Téléphone</th>
         </tr>
       </thead>
       <tbody>
         ${r.nouveaux!.map(n => `
           <tr>
-            <td class="border border-black px-3 py-2">${n.nom}</td>
-            <td class="border border-black px-3 py-2">${n.tel || "—"}</td>
+            <td>${n.nom}</td>
+            <td>${n.tel || "—"}</td>
           </tr>
         `).join("")}
       </tbody>
     </table>` : "";
 
   const headerHtml = logo ? `
-    <div class="flex items-center gap-4 mb-6 pb-4 border-b-2 border-black print:flex">
-      <img id="print-header-logo" src="${logo}" alt="Logo" class="h-10 w-auto object-contain print:h-10" style="max-height:40mm;" />
-      <div>
-        <h1 class="text-2xl font-bold uppercase tracking-wide">${ext?.nom || "Emerge in Christ"}</h1>
-        <p class="text-gray-600">Rapport de Culte - ${fmtD(r.date)}</p>
+    <div class="header-bar">
+      <img id="print-header-logo" src="${logo}" alt="Logo" class="header-logo" />
+      <div class="header-info">
+        <div class="header-church">${ext?.nom || "Emerge in Christ"}</div>
+        <div class="header-title">RAPPORT DE CULTE</div>
+        <div class="header-date">${fmtD(r.date)}</div>
       </div>
     </div>
-    <div id="no-logo-div" class="hidden">
-    </div>
+    <div id="no-logo-div" style="display:none"></div>
   ` : `
-    <div id="no-logo-div" class="text-center mb-6 pb-4 border-b-2 border-black">
-      <h1 class="text-2xl font-bold uppercase tracking-wide">${ext?.nom || "Emerge in Christ"}</h1>
-      <p class="text-gray-600">Rapport de Culte - ${fmtD(r.date)}</p>
+    <div id="no-logo-div" class="header-bar header-bar--center">
+      <div class="header-info" style="text-align:center">
+        <div class="header-church">${ext?.nom || "Emerge in Christ"}</div>
+        <div class="header-title">RAPPORT DE CULTE</div>
+        <div class="header-date">${fmtD(r.date)}</div>
+      </div>
     </div>
   `;
 
@@ -875,156 +874,383 @@ function doExportHTML(rapId: string) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rapport de Culte - ${ext?.nom || "EIC"} - ${r.date}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    @page {
-      size: A4;
-      margin: 16mm;
+    /* ── Reset & Base ─────────────────────────────────── */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { font-size: 10pt; }
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      line-height: 1.5;
+      color: #1f2937;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 20mm;
+      background: #fff;
+    }
+
+    /* ── Page Setup ───────────────────────────────────── */
+    @page { 
+      size: A4; 
+      margin: 20mm; 
+    }
+    @page :first {
+      margin-top: 20mm;
     }
     @media print {
       body { 
         -webkit-print-color-adjust: exact; 
         print-color-adjust: exact; 
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 16mm !important;
+        width:100%!important; 
+        margin:0!important; 
+        padding:20mm!important; 
       }
       .no-print { display: none !important; }
-      .print\\:page-break-before { page-break-before: always; }
-      .print\\:hidden { display: none !important; }
-      .break-before-page { page-break-before: always; break-before: always; }
-      .break-after-avoid { break-after: avoid; page-break-after: avoid; }
-      .break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
     }
-    body {
-      width: 210mm;
-      min-height: 297mm;
+
+    /* ── Header (first page only) ──────────────────────── */
+    .header-bar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #1e3a8a;
+    }
+    .header-bar--center { justify-content: center; }
+    .header-logo { height: 48px; width: auto; object-fit: contain; }
+    .header-church { 
+      font-size: 14pt; 
+      font-weight: 700; 
+      text-transform: uppercase; 
+      letter-spacing: 0.8px; 
+      color: #1e3a8a;
+    }
+    .header-title { 
+      font-size: 11pt; 
+      font-weight: 600; 
+      color: #374151; 
+      text-transform: uppercase; 
+      letter-spacing: 1.5px; 
+      margin-top: 2px;
+    }
+    .header-date { 
+      font-size: 10pt; 
+      color: #6b7280; 
+      margin-top: 4px;
+    }
+
+    /* Hide header on subsequent pages */
+    @media print {
+      .header-bar { display: none; }
+      body { padding-top: 0 !important; }
+    }
+
+    /* ── Sections ─────────────────────────────────────── */
+    .section {
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      orphans: 3;
+      widows: 3;
+    }
+    .section-title {
+      font-size: 10pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #1e3a8a;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      border-bottom: 1.5px solid #1e3a8a;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    /* ── Info grid ────────────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 32px;
+      background: #f9fafb;
+      padding: 12px 16px;
+      border-radius: 4px;
+      border: 1px solid #e5e7eb;
+    }
+    .info-grid .label { font-weight: 600; color: #374151; }
+    .info-grid .value { color: #4b5563; }
+
+    /* ── Tables ───────────────────────────────────────── */
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 9pt;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    th, td { 
+      padding: 6px 10px; 
+      border: 1px solid #d1d5db; 
+    }
+    thead th { 
+      background: #f3f4f6; 
+      font-weight: 700; 
+      color: #1f2937; 
+      white-space: nowrap;
+      text-transform: uppercase;
+      font-size: 8pt;
+      letter-spacing: 0.5px;
+    }
+    tbody tr:nth-child(even) { background: #fafbfc; }
+    tbody tr { page-break-inside: avoid; break-inside: avoid; }
+    .txt-right { text-align: right; }
+    .txt-left  { text-align: left; }
+    .txt-center { text-align: center; }
+    .row-total td { 
+      background: #e5e7eb; 
+      font-weight: 700;
+      border-top: 2px solid #9ca3af;
+    }
+    
+    /* ── Repartition Table ─────────────────────────────── */
+    table.repartition-table th {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+    table.repartition-table .row-total td {
+      background: #e0e7ff;
+      border-top: 2px solid #4f46e5;
+    }
+    
+    /* ── Depenses Table ───────────────────────────────── */
+    table.depenses-table th {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    table.depenses-table .row-total td {
+      background: #fef3c7;
+      border-top: 2px solid #d97706;
+    }
+    
+    /* ── Nouveaux Table ───────────────────────────────── */
+    table.nouveaux-table th {
+      background: #dcfce7;
+      color: #166534;
+    }
+    table.nouveaux-table tbody tr:hover {
+      background: #f0fdf4;
+    }
+
+    /* ── Effectif table ───────────────────────────────── */
+    .eff-table { 
+      width: auto; 
+      min-width: 75%; 
       margin: 0 auto;
-      padding: 16mm;
-      box-sizing: border-box;
     }
+    .eff-table td { 
+      text-align: center; 
+      padding: 10px 20px; 
+    }
+    .eff-table .eff-val { 
+      font-size: 14pt; 
+      font-weight: 700; 
+      color: #1e3a8a; 
+    }
+    .eff-table .eff-lbl { 
+      font-size: 8pt; 
+      color: #6b7280; 
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Reste final ──────────────────────────────────── */
+    .reste-final {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 10px 24px;
+      background: #eff6ff;
+      border: 2px solid #1e3a8a;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 12pt;
+      color: #1e3a8a;
+    }
+
+    /* ── Signatures ───────────────────────────────────── */
+    .sig-block {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 2px solid #1e3a8a;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 32px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-item { text-align: center; }
+    .sig-line { 
+      border-bottom: 1px solid #9ca3af; 
+      height: 40px; 
+      margin-bottom: 8px; 
+    }
+    .sig-role { 
+      font-weight: 700; 
+      font-size: 9pt; 
+      color: #374151; 
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sig-name { 
+      font-size: 8pt; 
+      color: #6b7280; 
+      margin-top: 4px; 
+    }
+
+    /* ── Print button bar ─────────────────────────────── */
+    .print-bar { text-align: center; margin-top: 30px; }
+    .print-bar button {
+      background: #1e3a8a; color: #fff; border: none; padding: 12px 32px;
+      font-size: 11pt; font-weight: 600; border-radius: 6px; cursor: pointer;
+    }
+    .print-bar button:hover { background: #1e2d6d; }
+    .print-bar p { font-size: 9pt; color: #6b7280; margin-top: 6px; }
+
+    /* ── Logo upload bar ──────────────────────────────── */
+    .logo-bar {
+      background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+      padding: 14px 18px; margin-bottom: 20px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    }
+    .logo-bar label { font-weight: 600; font-size: 9pt; color: #1e3a8a; }
+    .logo-bar input[type=file], .logo-bar input[type=text] { font-size: 9pt; }
+    .logo-bar input[type=text] { flex:1; min-width:180px; padding:5px 8px; border:1px solid #93c5fd; border-radius:4px; }
+    .logo-bar button { padding:5px 12px; font-size:9pt; font-weight:600; border:none; border-radius:4px; cursor:pointer; }
+    .logo-bar .btn-apply { background:#1e3a8a; color:#fff; }
+    .logo-bar .btn-save  { background:#16a34a; color:#fff; }
+    .logo-bar .btn-rm    { background:transparent; color:#dc2626; font-size:9pt; }
+    #logo-preview { display:none; align-items:center; gap:8px; }
+    #logo-preview.visible { display:flex; }
+    #preview-img { height:36px; width:auto; object-fit:contain; border:1px solid #93c5fd; border-radius:4px; }
   </style>
 </head>
-<body class="bg-white text-gray-900 font-sans">
-  <!-- LOGO UPLOAD SECTION (visible on screen, hidden on print) -->
-  <div class="no-print mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg print:hidden">
-    <div class="flex flex-col sm:flex-row items-center gap-4">
-      <div class="flex-1">
-        <label class="block text-sm font-semibold text-blue-800 mb-2">Logo pour l'impression (optionnel)</label>
-        <div class="flex gap-2 flex-wrap">
-          <input type="file" id="logo-upload" accept="image/*,image/svg+xml" class="text-sm text-blue-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200" />
-          <input type="text" id="logo-url" placeholder="Ou coller une URL..." class="flex-1 min-w-48 px-3 py-2 border border-blue-300 rounded text-sm" />
-          <button onclick="applyLogo()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold">Appliquer</button>
-          <button onclick="saveLogoForFuture()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-semibold" title="Sauvegarder pour les prochaines impressions">💾 Sauvegarder</button>
-        </div>
-      </div>
-      <div id="logo-preview" class="hidden items-center gap-2">
-        <img id="preview-img" src="" alt="Aperçu" class="h-12 w-auto object-contain border border-blue-300 rounded" />
-        <button onclick="removeLogo()" class="ml-2 text-red-600 hover:text-red-800 text-sm">✕ Retirer</button>
-      </div>
+<body>
+  <!-- LOGO UPLOAD (screen only) -->
+  <div class="no-print logo-bar">
+    <label>Logo pour l'impression (optionnel)</label>
+    <input type="file" id="logo-upload" accept="image/*,image/svg+xml" />
+    <input type="text" id="logo-url" placeholder="Ou coller une URL..." />
+    <button class="btn-apply" onclick="applyLogo()">Appliquer</button>
+    <button class="btn-save" onclick="saveLogoForFuture()">Sauvegarder</button>
+    <div id="logo-preview">
+      <img id="preview-img" src="" alt="Aperçu" />
+      <button class="btn-rm" onclick="removeLogo()">Retirer</button>
     </div>
   </div>
 
-  <div class="text-center mb-6">
-    <h1 class="text-3xl font-bold uppercase tracking-wider border-b-4 border-black pb-2 inline-block">RAPPORT DE CULTE</h1>
-  </div>
-  
+  <!-- EN-TÊTE -->
   ${headerHtml}
-  
-  <!-- INFORMATIONS DU CULTE -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Informations du Culte</h3>
-    <div class="grid grid-cols-2 gap-4 text-sm">
-      <div><span class="font-bold">Heure:</span> ${r.heureDebut || "—"} - ${r.heureFin || "—"}</div>
-      <div><span class="font-bold">Modérateur:</span> ${r.moderateur || "—"}</div>
-      <div><span class="font-bold">Prédicateur:</span> ${r.predicateur || "—"}</div>
-      <div><span class="font-bold">Interprète:</span> ${r.interprete || "—"}</div>
-      <div><span class="font-bold">Thème:</span> ${r.theme || "—"}</div>
-      <div><span class="font-bold">Textes:</span> ${r.textes || "—"}</div>
+
+  <!-- 1. INFORMATIONS DU CULTE -->
+  <div class="section">
+    <div class="section-title">Informations du Culte</div>
+    <div class="info-grid">
+      <div><span class="label">Heure :</span> <span class="value">${r.heureDebut || "—"} – ${r.heureFin || "—"}</span></div>
+      <div><span class="label">Modérateur :</span> <span class="value">${r.moderateur || "—"}</span></div>
+      <div><span class="label">Prédicateur :</span> <span class="value">${r.predicateur || "—"}</span></div>
+      <div><span class="label">Interprète :</span> <span class="value">${r.interprete || "—"}</span></div>
+      <div><span class="label">Thème :</span> <span class="value">${r.theme || "—"}</span></div>
+      <div><span class="label">Textes :</span> <span class="value">${r.textes || "—"}</span></div>
     </div>
   </div>
 
-  <!-- EFFECTIF -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Effectif des Présents</h3>
-    <div class="grid grid-cols-5 gap-2 text-center text-sm border border-black p-3">
-      <div><div class="font-bold text-lg">${r.effectif?.papas || 0}</div><div class="text-xs">Papas</div></div>
-      <div><div class="font-bold text-lg">${r.effectif?.mamans || 0}</div><div class="text-xs">Mamans</div></div>
-      <div><div class="font-bold text-lg">${r.effectif?.freres || 0}</div><div class="text-xs">Frères</div></div>
-      <div><div class="font-bold text-lg">${r.effectif?.soeurs || 0}</div><div class="text-xs">Sœurs</div></div>
-      <div><div class="font-bold text-lg">${r.effectif?.enfants || 0}</div><div class="text-xs">Enfants</div></div>
-    </div>
-    <div class="text-center mt-3 font-bold text-lg border border-black p-2 inline-block px-8">Total: ${r.effectif?.total || 0}</div>
+  <!-- 2. EFFECTIF DES PRÉSENTS -->
+  <div class="section">
+    <div class="section-title">Effectif des Présents</div>
+    <table class="eff-table">
+      <thead>
+        <tr>
+          <th>Papas</th><th>Mamans</th><th>Frères</th><th>Sœurs</th><th>Enfants</th><th class="row-total">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="eff-val">${r.effectif?.papas || 0}</span></td>
+          <td><span class="eff-val">${r.effectif?.mamans || 0}</span></td>
+          <td><span class="eff-val">${r.effectif?.freres || 0}</span></td>
+          <td><span class="eff-val">${r.effectif?.soeurs || 0}</span></td>
+          <td><span class="eff-val">${r.effectif?.enfants || 0}</span></td>
+          <td class="row-total"><span class="eff-val">${r.effectif?.total || 0}</span></td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
-  <!-- RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Répartition des Recettes et Prélèvements</h3>
+  <!-- 3. RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS -->
+  <div class="section">
+    <div class="section-title">Répartition des Recettes et Prélèvements</div>
     ${repartitionTable}
   </div>
 
-  <!-- DÉPENSES (Nouvelle page à l'impression) -->
-  <div class="mb-6 break-before-page" style="break-before: page; page-break-before: always;">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black" style="break-after: avoid;">Dépenses</h3>
-    <div class="break-inside-avoid" style="page-break-inside: avoid; break-inside: avoid;">
-      ${depensesTable}
-    </div>
+  <!-- 4. DÉPENSES -->
+  <div class="section">
+    <div class="section-title">Dépenses</div>
+    ${depensesTable}
   </div>
 
-  <!-- ACCUEIL DES NOUVEAUX -->
+  <!-- 5. RESTE FINAL -->
+  <div class="section">
+    <div class="section-title">Reste Final</div>
+    <div class="reste-final">${fc(r.soldeFinal || 0)}</div>
+  </div>
+
+  <!-- 6. ACCUEIL DES NOUVEAUX -->
   ${nouveauxTable ? `
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Accueil des Nouveaux</h3>
+  <div class="section">
+    <div class="section-title">Accueil des Nouveaux</div>
     ${nouveauxTable}
   </div>
   ` : ""}
 
-  <!-- SIGNATURES -->
-  <div class="mt-12 pt-4 border-t-4 border-black">
-    <div class="grid grid-cols-3 gap-4 text-sm">
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Secrétaire</div>
-        <div class="text-xs">${r.signatures?.secretaire || ""}</div>
-      </div>
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Trésorier</div>
-        <div class="text-xs">${r.signatures?.tresorier || ""}</div>
-      </div>
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Pasteur</div>
-        <div class="text-xs">${r.signatures?.pasteur || ""}</div>
-      </div>
+  <!-- 7. SIGNATURES -->
+  <div class="sig-block">
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Secrétaire</div>
+      <div class="sig-name">${r.signatures?.secretaire || ""}</div>
+    </div>
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Trésorier</div>
+      <div class="sig-name">${r.signatures?.tresorier || ""}</div>
+    </div>
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Pasteur</div>
+      <div class="sig-name">${r.signatures?.pasteur || ""}</div>
     </div>
   </div>
 
   <!-- BOUTON IMPRESSION -->
-  <div class="no-print mt-8 text-center">
-    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg">
-      Imprimer / Enregistrer PDF
-    </button>
-    <p class="text-sm text-gray-500 mt-2">Utilisez "Enregistrer sous PDF" dans la boîte de dialogue d'impression</p>
+  <div class="no-print print-bar">
+    <button onclick="window.print()">Imprimer / Enregistrer PDF</button>
+    <p>Utilisez « Enregistrer sous PDF » dans la boîte de dialogue d'impression</p>
   </div>
+
   <script>
-    // Initialize logo from localStorage (persisted from settings or previous saves)
     let currentLogo = localStorage.getItem('eic_logo') || null;
-    
-    // Also check sessionStorage for temporary logo during this session
-    if (!currentLogo) {
-      currentLogo = sessionStorage.getItem('print_logo');
-    }
+    if (!currentLogo) currentLogo = sessionStorage.getItem('print_logo');
 
     function applyLogo() {
       const fileInput = document.getElementById('logo-upload');
       const urlInput = document.getElementById('logo-url');
-      
       if (fileInput.files && fileInput.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
           currentLogo = e.target.result;
-          // Persist to sessionStorage for this print session
           sessionStorage.setItem('print_logo', currentLogo);
           updateLogoDisplay();
         };
@@ -1041,40 +1267,23 @@ function doExportHTML(rapId: string) {
       const previewImg = document.getElementById('preview-img');
       const headerLogo = document.getElementById('print-header-logo');
       const noLogoDiv = document.getElementById('no-logo-div');
-      
       if (currentLogo) {
-        if (preview) {
-          preview.classList.remove('hidden');
-          preview.classList.add('flex');
-          previewImg.src = currentLogo;
-        }
-        if (headerLogo) {
-          headerLogo.src = currentLogo;
-          headerLogo.parentElement.classList.remove('hidden');
-        }
-        if (noLogoDiv) {
-          noLogoDiv.classList.add('hidden');
-        }
+        if (preview) { preview.classList.add('visible'); previewImg.src = currentLogo; }
+        if (headerLogo) { headerLogo.src = currentLogo; headerLogo.parentElement.style.display = ''; }
+        if (noLogoDiv) noLogoDiv.style.display = 'none';
       }
     }
 
     function removeLogo() {
       currentLogo = null;
       sessionStorage.removeItem('print_logo');
-      // Note: We don't remove from localStorage here to preserve saved logo
-      document.getElementById('logo-preview').classList.add('hidden');
-      document.getElementById('logo-preview').classList.remove('flex');
+      document.getElementById('logo-preview').classList.remove('visible');
       document.getElementById('logo-upload').value = '';
       document.getElementById('logo-url').value = '';
       const headerLogo = document.getElementById('print-header-logo');
-      if (headerLogo) {
-        headerLogo.src = '';
-        headerLogo.parentElement.classList.add('hidden');
-      }
+      if (headerLogo) { headerLogo.src = ''; headerLogo.parentElement.style.display = 'none'; }
       const noLogoDiv = document.getElementById('no-logo-div');
-      if (noLogoDiv) {
-        noLogoDiv.classList.remove('hidden');
-      }
+      if (noLogoDiv) noLogoDiv.style.display = '';
     }
 
     function saveLogoForFuture() {
@@ -1090,13 +1299,7 @@ function doExportHTML(rapId: string) {
       }
     }
 
-    // Run on page load to display existing logo
-    document.addEventListener('DOMContentLoaded', function() {
-      if (currentLogo) {
-        updateLogoDisplay();
-      }
-    });
-
+    document.addEventListener('DOMContentLoaded', function() { if (currentLogo) updateLogoDisplay(); });
     window.applyLogo = applyLogo;
     window.removeLogo = removeLogo;
     window.saveLogoForFuture = saveLogoForFuture;
@@ -1522,170 +1725,485 @@ function doExportBilanHTML() {
   }
   
   const { extId, period, yr, month, quarter, periodLabel, socialPct } = params;
-  // const exts = Store.getExts(); // not needed in export
   const logo = Store.getLogo();
   const cfg = Store.getSet();
+  const exts = Store.getExts();
+  const ext = extId ? exts.find(e => e.id === extId) : null;
+  const sym = ext?.symbole || "€";
+  const fc = (val: unknown) => fmtCur(val, sym);
 
   const data = getBilanData(extId, period, yr, month, quarter);
 
-  const headerHtml = logo ? `
-    <div class="flex items-center gap-4 mb-6 pb-4 border-b-2 border-black">
-      <img src="${logo}" alt="Logo" class="h-12 w-auto object-contain" style="max-height:40mm;" />
-      <div>
-        <h1 class="text-2xl font-bold uppercase">${cfg.nom || "Emerge in Christ"}</h1>
-        <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
-      </div>
-    </div>
-  ` : `
-    <div class="text-center mb-6 pb-4 border-b-2 border-black">
-      <h1 class="text-2xl font-bold uppercase">${cfg.nom || "Emerge in Christ"}</h1>
-      <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
-    </div>
-  `;
-
-  const repartitionTable = `
-    <table class="w-full border-collapse text-sm">
-      <thead>
-        <tr class="bg-gray-100">
-          <th class="border border-black px-3 py-2 text-left font-bold">Type de recette</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Dîme 10 %</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Social (${socialPct}%)</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Reste</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="border border-black px-3 py-2">Offrandes ordinaires</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * 0.1)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (socialPct/100))}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (1 - 0.1 - socialPct/100))}</td>
-        </tr>
-        <tr>
-          <td class="border border-black px-3 py-2">Offrandes pour Orateur</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
-          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
-          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
-        </tr>
-        <tr>
-          <td class="border border-black px-3 py-2">Dîmes</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * 0.1)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (socialPct/100))}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (1 - 0.1 - socialPct/100))}</td>
-        </tr>
-        <tr>
-          <td class="border border-black px-3 py-2">Actions de Grâce</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * 0.1)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (socialPct/100))}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
-        </tr>
-        <tr class="bg-gray-200 font-bold">
-          <td class="border border-black px-3 py-2">TOTAL</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.totalRecettes)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimeTotal)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.socialTotal)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.resteTotal)}</td>
-        </tr>
-      </tbody>
-    </table>`;
+  // Period type labels
+  const periodTypeLabel = period === "monthly" ? "MENSUEL" : period === "quarterly" ? "TRIMESTRIEL" : "ANNUEL";
+  const churchName = ext?.nom || cfg.nom || "Emerge in Christ";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bilan Financier - ${periodLabel}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Rapport ${periodTypeLabel} - ${churchName} - ${periodLabel}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    @page { size: A4; margin: 16mm; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; width: 100% !important; margin: 0 !important; padding: 16mm !important; }
-      .no-print { display: none !important; }
+    /* ── Reset & Base ─────────────────────────────────── */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { font-size: 10pt; }
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      line-height: 1.5;
+      color: #1f2937;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 20mm;
+      background: #fff;
     }
-    body { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 16mm; box-sizing: border-box; }
+
+    /* ── Page Setup ───────────────────────────────────── */
+    @page { 
+      size: A4; 
+      margin: 20mm; 
+    }
+    @page :first {
+      margin-top: 20mm;
+    }
+    @media print {
+      body { 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+        width:100%!important; 
+        margin:0!important; 
+        padding:20mm!important; 
+      }
+      .no-print { display: none !important; }
+      .page-break { page-break-after: always; }
+      .no-page-break { page-break-after: avoid; }
+    }
+
+    /* ── Cover Page ───────────────────────────────────── */
+    .cover-page {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40mm;
+    }
+    .cover-logo {
+      max-height: 60mm;
+      max-width: 80mm;
+      margin-bottom: 30px;
+    }
+    .cover-church {
+      font-size: 18pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #1e3a8a;
+      margin-bottom: 20px;
+    }
+    .cover-title {
+      font-size: 24pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: #1f2937;
+      margin-bottom: 16px;
+    }
+    .cover-period {
+      font-size: 14pt;
+      font-weight: 600;
+      color: #4b5563;
+      margin-bottom: 40px;
+    }
+    .cover-divider {
+      width: 120px;
+      height: 3px;
+      background: #1e3a8a;
+      margin: 0 auto;
+    }
+    .cover-date {
+      font-size: 10pt;
+      color: #6b7280;
+      margin-top: 40px;
+    }
+
+    /* ── Header (repeated on content pages) ───────────── */
+    .content-header {
+      display: none;
+    }
+    @media print {
+      .content-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 12px;
+        margin-bottom: 20px;
+        border-bottom: 1.5px solid #1e3a8a;
+      }
+      .content-header .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .content-header .header-logo {
+        height: 28px;
+        width: auto;
+      }
+      .content-header .header-church {
+        font-size: 10pt;
+        font-weight: 700;
+        color: #1e3a8a;
+        text-transform: uppercase;
+      }
+      .content-header .header-right {
+        font-size: 9pt;
+        color: #6b7280;
+        text-align: right;
+      }
+    }
+
+    /* ── Sections ─────────────────────────────────────── */
+    .section {
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      orphans: 3;
+      widows: 3;
+    }
+    .section-title {
+      font-size: 10pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #1e3a8a;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      border-bottom: 1.5px solid #1e3a8a;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    /* ── Stats Grid ───────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      border: 1px solid #d1d5db;
+      padding: 12px;
+      text-align: center;
+      background: #f9fafb;
+    }
+    .stat-value {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #1e3a8a;
+    }
+    .stat-value.positive { color: #059669; }
+    .stat-value.negative { color: #dc2626; }
+    .stat-label {
+      font-size: 8pt;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    /* ── Tables ───────────────────────────────────────── */
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 9pt;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    th, td { 
+      padding: 8px 12px; 
+      border: 1px solid #d1d5db; 
+    }
+    thead th { 
+      background: #eef2ff; 
+      font-weight: 700; 
+      color: #1e3a8a; 
+      white-space: nowrap;
+      text-transform: uppercase;
+      font-size: 8pt;
+      letter-spacing: 0.5px;
+    }
+    tbody tr:nth-child(even) { background: #fafbfc; }
+    tbody tr { page-break-inside: avoid; break-inside: avoid; }
+    .txt-right { text-align: right; }
+    .txt-left  { text-align: left; }
+    .txt-center { text-align: center; }
+    .row-total td { 
+      background: #e0e7ff; 
+      font-weight: 700;
+      border-top: 2px solid #4f46e5;
+    }
+    
+    /* ── Repartition Table ─────────────────────────────── */
+    table.repartition-table th {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+    table.repartition-table .row-total td {
+      background: #c7d2fe;
+    }
+    
+    /* ── Resume Table ─────────────────────────────────── */
+    table.resume-table th {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    table.resume-table td.label {
+      font-weight: 600;
+    }
+    table.resume-table td.amount {
+      text-align: right;
+      font-weight: 600;
+    }
+    table.resume-table tr.subtotal td {
+      background: #fef3c7;
+      font-weight: 700;
+    }
+    table.resume-table tr.final td {
+      background: #dbeafe;
+      font-weight: 700;
+      font-size: 11pt;
+    }
+    .amount-negative { color: #dc2626; }
+    .amount-positive { color: #059669; }
+
+    /* ── Other Stats ─────────────────────────────────── */
+    .other-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      font-size: 9pt;
+    }
+    .other-stats .stat-item {
+      padding: 8px 12px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+    }
+    .other-stats .stat-item strong {
+      color: #374151;
+    }
+
+    /* ── Signatures ───────────────────────────────────── */
+    .sig-block {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 2px solid #1e3a8a;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 40px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-item { text-align: center; }
+    .sig-line { 
+      border-bottom: 1px solid #9ca3af; 
+      height: 40px; 
+      margin-bottom: 8px; 
+    }
+    .sig-role { 
+      font-weight: 700; 
+      font-size: 9pt; 
+      color: #374151; 
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sig-name { 
+      font-size: 8pt; 
+      color: #6b7280; 
+      margin-top: 4px; 
+    }
+
+    /* ── Print button bar ─────────────────────────────── */
+    .print-bar { text-align: center; margin-top: 30px; }
+    .print-bar button {
+      background: #1e3a8a; color: #fff; border: none; padding: 12px 32px;
+      font-size: 11pt; font-weight: 600; border-radius: 6px; cursor: pointer;
+    }
+    .print-bar button:hover { background: #1e2d6d; }
+    .print-bar p { font-size: 9pt; color: #6b7280; margin-top: 6px; }
   </style>
 </head>
-<body class="bg-white text-gray-900 font-sans">
-  <div class="no-print mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg print:hidden">
-    <p class="text-sm text-blue-800"><strong>Conseil :</strong> Utilisez "Enregistrer sous PDF" dans la boîte de dialogue d'impression pour sauvegarder ce bilan.</p>
+<body>
+  <!-- Page de couverture -->
+  <div class="cover-page">
+    ${logo ? `<img class="cover-logo" src="${logo}" alt="Logo" />` : ''}
+    <div class="cover-church">${churchName}</div>
+    <div class="cover-title">Rapport ${periodTypeLabel}</div>
+    <div class="cover-period">Période : ${periodLabel}</div>
+    <div class="cover-divider"></div>
+    <div class="cover-date">Document généré le ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
   </div>
 
-  <div class="text-center mb-6">
-    <h1 class="text-3xl font-bold uppercase tracking-wider border-b-4 border-black pb-2 inline-block">BILAN FINANCIER</h1>
+  <!-- Page de contenu -->
+  <div class="page-break"></div>
+  
+  <!-- En-tête répété -->
+  <div class="content-header">
+    <div class="header-left">
+      ${logo ? `<img class="header-logo" src="${logo}" alt="Logo" />` : ''}
+      <span class="header-church">${churchName}</span>
+    </div>
+    <div class="header-right">
+      Rapport ${periodTypeLabel} · ${periodLabel}
+    </div>
   </div>
-
-  ${headerHtml}
 
   <!-- STATISTIQUES GLOBALES -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Statistiques Globales</h3>
-    <div class="grid grid-cols-4 gap-4 text-center">
-      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.cultes}</div><div class="text-sm">Cultes</div></div>
-      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.presence}</div><div class="text-sm">Présence</div></div>
-      <div class="border border-black p-3"><div class="text-2xl font-bold text-green-700">${fmtTRY(data.totalRecettes)}</div><div class="text-sm">Total Recettes</div></div>
-      <div class="border border-black p-3"><div class="text-2xl font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</div><div class="text-sm">Solde Final</div></div>
+  <div class="section">
+    <div class="section-title">Statistiques Globales</div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-value">${data.cultes}</div>
+        <div class="stat-label">Cultes</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${data.presence}</div>
+        <div class="stat-label">Présence</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value positive">${fc(data.totalRecettes)}</div>
+        <div class="stat-label">Total Recettes</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value ${data.soldeFinal >= 0 ? 'positive' : 'negative'}">${fc(data.soldeFinal)}</div>
+        <div class="stat-label">Solde Final</div>
+      </div>
     </div>
   </div>
 
   <!-- RÉPARTITION DES RECETTES -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Répartition des Recettes et Prélèvements</h3>
-    ${repartitionTable}
+  <div class="section">
+    <div class="section-title">Répartition des Recettes et Prélèvements</div>
+    <table class="repartition-table">
+      <thead>
+        <tr>
+          <th class="txt-left">Type de recette</th>
+          <th class="txt-right">Montant (${sym})</th>
+          <th class="txt-right">Dîme 10 %</th>
+          <th class="txt-right">Social (${socialPct}%)</th>
+          <th class="txt-right">Reste</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Offrandes ordinaires</td>
+          <td class="txt-right">${fc(data.ordinaires)}</td>
+          <td class="txt-right">${fc(data.ordinaires * 0.1)}</td>
+          <td class="txt-right">${fc(data.ordinaires * (socialPct/100))}</td>
+          <td class="txt-right">${fc(data.ordinaires * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td>Offrandes pour Orateur</td>
+          <td class="txt-right">${fc(data.orateur)}</td>
+          <td class="txt-right">${fc(0)}</td>
+          <td class="txt-right">${fc(0)}</td>
+          <td class="txt-right">${fc(data.orateur)}</td>
+        </tr>
+        <tr>
+          <td>Dîmes</td>
+          <td class="txt-right">${fc(data.dimes)}</td>
+          <td class="txt-right">${fc(data.dimes * 0.1)}</td>
+          <td class="txt-right">${fc(data.dimes * (socialPct/100))}</td>
+          <td class="txt-right">${fc(data.dimes * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td>Actions de Grâce</td>
+          <td class="txt-right">${fc(data.actionsGrace)}</td>
+          <td class="txt-right">${fc(data.actionsGrace * 0.1)}</td>
+          <td class="txt-right">${fc(data.actionsGrace * (socialPct/100))}</td>
+          <td class="txt-right">${fc(data.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr class="row-total">
+          <td>TOTAL</td>
+          <td class="txt-right">${fc(data.totalRecettes)}</td>
+          <td class="txt-right">${fc(data.dimeTotal)}</td>
+          <td class="txt-right">${fc(data.socialTotal)}</td>
+          <td class="txt-right">${fc(data.resteTotal)}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <!-- RÉSUMÉ FINANCIER -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Résumé Financier</h3>
-    <table class="w-full border-collapse text-sm">
+  <div class="section">
+    <div class="section-title">Résumé Financier</div>
+    <table class="resume-table">
       <tbody>
-        <tr class="bg-gray-100"><td class="border border-black px-3 py-2 font-bold">Total Recettes</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.totalRecettes)}</td></tr>
-        <tr><td class="border border-black px-3 py-2">- Prélèvement Dîme (10%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.dimeTotal)}</td></tr>
-        <tr><td class="border border-black px-3 py-2">- Prélèvement Social (${socialPct}%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.socialTotal)}</td></tr>
-        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Montant Disponible</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.resteTotal)}</td></tr>
-        <tr><td class="border border-black px-3 py-2">- Total Dépenses</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.totalDepenses)}</td></tr>
-        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Solde Final</td><td class="border border-black px-3 py-2 text-right font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</td></tr>
+        <tr>
+          <td class="label">Total Recettes</td>
+          <td class="amount">${fc(data.totalRecettes)}</td>
+        </tr>
+        <tr>
+          <td class="label">− Prélèvement Dîme (10%)</td>
+          <td class="amount amount-negative">− ${fc(data.dimeTotal)}</td>
+        </tr>
+        <tr>
+          <td class="label">− Prélèvement Social (${socialPct}%)</td>
+          <td class="amount amount-negative">− ${fc(data.socialTotal)}</td>
+        </tr>
+        <tr class="subtotal">
+          <td class="label">= Montant Disponible</td>
+          <td class="amount">${fc(data.resteTotal)}</td>
+        </tr>
+        <tr>
+          <td class="label">− Total Dépenses</td>
+          <td class="amount amount-negative">− ${fc(data.totalDepenses)}</td>
+        </tr>
+        <tr class="final">
+          <td class="label">= Solde Final</td>
+          <td class="amount ${data.soldeFinal >= 0 ? 'amount-positive' : 'amount-negative'}">${fc(data.soldeFinal)}</td>
+        </tr>
       </tbody>
     </table>
   </div>
 
   <!-- AUTRES STATISTIQUES -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Autres Statistiques</h3>
-    <div class="grid grid-cols-3 gap-4 text-sm">
-      <div><span class="font-bold">Nombre de cultes :</span> ${data.cultes}</div>
-      <div><span class="font-bold">Présence totale :</span> ${data.presence}</div>
-      <div><span class="font-bold">Présence moyenne :</span> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
-      <div><span class="font-bold">Nouveaux convertis :</span> ${data.nouveaux}</div>
-      <div><span class="font-bold">Moyenne offrandes/culte :</span> ${fmtTRY(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
+  <div class="section">
+    <div class="section-title">Autres Statistiques</div>
+    <div class="other-stats">
+      <div class="stat-item"><strong>Nombre de cultes :</strong> ${data.cultes}</div>
+      <div class="stat-item"><strong>Présence totale :</strong> ${data.presence}</div>
+      <div class="stat-item"><strong>Présence moyenne :</strong> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
+      <div class="stat-item"><strong>Nouveaux convertis :</strong> ${data.nouveaux}</div>
+      <div class="stat-item"><strong>Moyenne offrandes/culte :</strong> ${fc(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
     </div>
   </div>
 
   <!-- SIGNATURES -->
-  <div class="mt-12 pt-4 border-t-4 border-black">
-    <div class="grid grid-cols-3 gap-4 text-sm">
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Secrétaire</div>
-      </div>
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Trésorier</div>
-      </div>
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Pasteur</div>
-      </div>
+  <div class="sig-block">
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Secrétaire</div>
+    </div>
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Trésorier</div>
+    </div>
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Pasteur</div>
     </div>
   </div>
 
-  <div class="no-print mt-8 text-center">
-    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg">
-      Imprimer / Enregistrer PDF
-    </button>
+  <!-- Bouton impression (masqué à l'impression) -->
+  <div class="no-print print-bar">
+    <button onclick="window.print()">Imprimer / Enregistrer PDF</button>
+    <p>Utilisez « Enregistrer sous PDF » dans la boîte de dialogue d'impression</p>
   </div>
 </body>
 </html>`;
@@ -2660,6 +3178,8 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
   const ext = Store.getExt(extId);
   const logo = Store.getLogo();
   const yr = new Date().getFullYear();
+  const sym = ext?.symbole || "€";
+  const fc = (val: unknown) => fmtCur(val, sym);
 
   let periodLabel = `${yr}`;
   let data;
@@ -2677,164 +3197,475 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
     data = getBilanData(extId, "annual", yr, undefined, undefined);
   }
 
-  const headerHtml = logo ? `
-    <div class="flex items-center gap-4 mb-6 pb-4 border-b-2 border-black">
-      <img src="${logo}" alt="Logo" class="h-12 w-auto object-contain" style="max-height:40mm;" />
-      <div>
-        <h1 class="text-2xl font-bold uppercase">${ext?.nom || "Emerge in Christ"}</h1>
-        <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
-      </div>
-    </div>
-  ` : `
-    <div class="text-center mb-6 pb-4 border-b-2 border-black">
-      <h1 class="text-2xl font-bold uppercase">${ext?.nom || "Emerge in Christ"}</h1>
-      <p class="text-gray-600">Bilan Financier - ${periodLabel}</p>
-    </div>
-  `;
-
-  const repartitionTable = `
-    <table class="w-full border-collapse text-sm">
-      <thead>
-        <tr class="bg-gray-100">
-          <th class="border border-black px-3 py-2 text-left font-bold">Type de recette</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Montant (₺)</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Dîme 10 %</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Social (${socialPct}%)</th>
-          <th class="border border-black px-3 py-2 text-right font-bold">Reste</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="border border-black px-3 py-2">Offrandes ordinaires</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * 0.1)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (socialPct/100))}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.ordinaires * (1 - 0.1 - socialPct/100))}</td>
-        </tr>
-        <tr>
-          <td class="border border-black px-3 py-2">Offrandes pour Orateur</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
-          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
-          <td class="border border-black px-3 py-2 text-right">₺ 0,00</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.orateur)}</td>
-        </tr>
-        <tr>
-          <td class="border border-black px-3 py-2">Dîmes</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * 0.1)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (socialPct/100))}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimes * (1 - 0.1 - socialPct/100))}</td>
-        </tr>
-        <tr>
-          <td class="border border-black px-3 py-2">Actions de Grâce</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * 0.1)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (socialPct/100))}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
-        </tr>
-        <tr class="bg-gray-200 font-bold">
-          <td class="border border-black px-3 py-2">TOTAL</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.totalRecettes)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.dimeTotal)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.socialTotal)}</td>
-          <td class="border border-black px-3 py-2 text-right">${fmtTRY(data.resteTotal)}</td>
-        </tr>
-      </tbody>
-    </table>`;
+  const periodTypeLabel = period === "monthly" ? "MENSUEL" : period === "quarterly" ? "TRIMESTRIEL" : "ANNUEL";
+  const churchName = ext?.nom || "Emerge in Christ";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bilan Financier - ${ext?.nom || "EIC"} - ${periodLabel}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Rapport ${periodTypeLabel} - ${churchName} - ${periodLabel}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    @page { size: A4; margin: 16mm; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; width: 100% !important; margin: 0 !important; padding: 16mm !important; }
-      .no-print { display: none !important; }
+    /* ── Reset & Base ─────────────────────────────────── */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { font-size: 10pt; }
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      line-height: 1.5;
+      color: #1f2937;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 20mm;
+      background: #fff;
     }
-    body { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 16mm; box-sizing: border-box; }
+
+    /* ── Page Setup ───────────────────────────────────── */
+    @page { 
+      size: A4; 
+      margin: 20mm; 
+    }
+    @page :first {
+      margin-top: 20mm;
+    }
+    @media print {
+      body { 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+        width:100%!important; 
+        margin:0!important; 
+        padding:20mm!important; 
+      }
+      .no-print { display: none !important; }
+      .page-break { page-break-after: always; }
+      .no-page-break { page-break-after: avoid; }
+    }
+
+    /* ── Cover Page ───────────────────────────────────── */
+    .cover-page {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40mm;
+    }
+    .cover-logo {
+      max-height: 60mm;
+      max-width: 80mm;
+      margin-bottom: 30px;
+    }
+    .cover-church {
+      font-size: 18pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #1e3a8a;
+      margin-bottom: 20px;
+    }
+    .cover-title {
+      font-size: 24pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: #1f2937;
+      margin-bottom: 16px;
+    }
+    .cover-period {
+      font-size: 14pt;
+      font-weight: 600;
+      color: #4b5563;
+      margin-bottom: 40px;
+    }
+    .cover-divider {
+      width: 120px;
+      height: 3px;
+      background: #1e3a8a;
+      margin: 0 auto;
+    }
+    .cover-date {
+      font-size: 10pt;
+      color: #6b7280;
+      margin-top: 40px;
+    }
+
+    /* ── Header (repeated on content pages) ───────────── */
+    .content-header {
+      display: none;
+    }
+    @media print {
+      .content-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 12px;
+        margin-bottom: 20px;
+        border-bottom: 1.5px solid #1e3a8a;
+      }
+      .content-header .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .content-header .header-logo {
+        height: 28px;
+        width: auto;
+      }
+      .content-header .header-church {
+        font-size: 10pt;
+        font-weight: 700;
+        color: #1e3a8a;
+        text-transform: uppercase;
+      }
+      .content-header .header-right {
+        font-size: 9pt;
+        color: #6b7280;
+        text-align: right;
+      }
+    }
+
+    /* ── Sections ─────────────────────────────────────── */
+    .section {
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      orphans: 3;
+      widows: 3;
+    }
+    .section-title {
+      font-size: 10pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #1e3a8a;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      border-bottom: 1.5px solid #1e3a8a;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    /* ── Stats Grid ───────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      border: 1px solid #d1d5db;
+      padding: 12px;
+      text-align: center;
+      background: #f9fafb;
+    }
+    .stat-value {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #1e3a8a;
+    }
+    .stat-value.positive { color: #059669; }
+    .stat-value.negative { color: #dc2626; }
+    .stat-label {
+      font-size: 8pt;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    /* ── Tables ───────────────────────────────────────── */
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 9pt;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    th, td { 
+      padding: 8px 12px; 
+      border: 1px solid #d1d5db; 
+    }
+    thead th { 
+      background: #eef2ff; 
+      font-weight: 700; 
+      color: #1e3a8a; 
+      white-space: nowrap;
+      text-transform: uppercase;
+      font-size: 8pt;
+      letter-spacing: 0.5px;
+    }
+    tbody tr:nth-child(even) { background: #fafbfc; }
+    tbody tr { page-break-inside: avoid; break-inside: avoid; }
+    .txt-right { text-align: right; }
+    .txt-left  { text-align: left; }
+    .txt-center { text-align: center; }
+    .row-total td { 
+      background: #e0e7ff; 
+      font-weight: 700;
+      border-top: 2px solid #4f46e5;
+    }
+    
+    /* ── Repartition Table ─────────────────────────────── */
+    table.repartition-table th {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+    table.repartition-table .row-total td {
+      background: #c7d2fe;
+    }
+    
+    /* ── Resume Table ─────────────────────────────────── */
+    table.resume-table th {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    table.resume-table td.label {
+      font-weight: 600;
+    }
+    table.resume-table td.amount {
+      text-align: right;
+      font-weight: 600;
+    }
+    table.resume-table tr.subtotal td {
+      background: #fef3c7;
+      font-weight: 700;
+    }
+    table.resume-table tr.final td {
+      background: #dbeafe;
+      font-weight: 700;
+      font-size: 11pt;
+    }
+    .amount-negative { color: #dc2626; }
+    .amount-positive { color: #059669; }
+
+    /* ── Other Stats ─────────────────────────────────── */
+    .other-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      font-size: 9pt;
+    }
+    .other-stats .stat-item {
+      padding: 8px 12px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+    }
+    .other-stats .stat-item strong {
+      color: #374151;
+    }
+
+    /* ── Signatures ───────────────────────────────────── */
+    .sig-block {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 2px solid #1e3a8a;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 40px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-item { text-align: center; }
+    .sig-line { 
+      border-bottom: 1px solid #9ca3af; 
+      height: 40px; 
+      margin-bottom: 8px; 
+    }
+    .sig-role { 
+      font-weight: 700; 
+      font-size: 9pt; 
+      color: #374151; 
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sig-name { 
+      font-size: 8pt; 
+      color: #6b7280; 
+      margin-top: 4px; 
+    }
+
+    /* ── Print button bar ─────────────────────────────── */
+    .print-bar { text-align: center; margin-top: 30px; }
+    .print-bar button {
+      background: #1e3a8a; color: #fff; border: none; padding: 12px 32px;
+      font-size: 11pt; font-weight: 600; border-radius: 6px; cursor: pointer;
+    }
+    .print-bar button:hover { background: #1e2d6d; }
+    .print-bar p { font-size: 9pt; color: #6b7280; margin-top: 6px; }
   </style>
 </head>
-<body class="bg-white text-gray-900 font-sans">
-  <div class="no-print mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg print:hidden">
-    <p class="text-sm text-blue-800"><strong>Conseil :</strong> Utilisez "Enregistrer sous PDF" dans la boîte de dialogue d'impression pour sauvegarder ce bilan.</p>
+<body>
+  <!-- Page de couverture -->
+  <div class="cover-page">
+    ${logo ? `<img class="cover-logo" src="${logo}" alt="Logo" />` : ''}
+    <div class="cover-church">${churchName}</div>
+    <div class="cover-title">Rapport ${periodTypeLabel}</div>
+    <div class="cover-period">Période : ${periodLabel}</div>
+    <div class="cover-divider"></div>
+    <div class="cover-date">Document généré le ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
   </div>
 
-  <div class="text-center mb-6">
-    <h1 class="text-3xl font-bold uppercase tracking-wider border-b-4 border-black pb-2 inline-block">BILAN FINANCIER</h1>
+  <!-- Page de contenu -->
+  <div class="page-break"></div>
+  
+  <!-- En-tête répété -->
+  <div class="content-header">
+    <div class="header-left">
+      ${logo ? `<img class="header-logo" src="${logo}" alt="Logo" />` : ''}
+      <span class="header-church">${churchName}</span>
+    </div>
+    <div class="header-right">
+      Rapport ${periodTypeLabel} · ${periodLabel}
+    </div>
   </div>
-
-  ${headerHtml}
 
   <!-- STATISTIQUES GLOBALES -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Statistiques Globales</h3>
-    <div class="grid grid-cols-4 gap-4 text-center">
-      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.cultes}</div><div class="text-sm">Cultes</div></div>
-      <div class="border border-black p-3"><div class="text-2xl font-bold">${data.presence}</div><div class="text-sm">Présence</div></div>
-      <div class="border border-black p-3"><div class="text-2xl font-bold text-green-700">${fmtTRY(data.totalRecettes)}</div><div class="text-sm">Total Recettes</div></div>
-      <div class="border border-black p-3"><div class="text-2xl font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</div><div class="text-sm">Solde Final</div></div>
+  <div class="section">
+    <div class="section-title">Statistiques Globales</div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-value">${data.cultes}</div>
+        <div class="stat-label">Cultes</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${data.presence}</div>
+        <div class="stat-label">Présence</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value positive">${fc(data.totalRecettes)}</div>
+        <div class="stat-label">Total Recettes</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value ${data.soldeFinal >= 0 ? 'positive' : 'negative'}">${fc(data.soldeFinal)}</div>
+        <div class="stat-label">Solde Final</div>
+      </div>
     </div>
   </div>
 
   <!-- RÉPARTITION DES RECETTES -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Répartition des Recettes et Prélèvements</h3>
-    ${repartitionTable}
+  <div class="section">
+    <div class="section-title">Répartition des Recettes et Prélèvements</div>
+    <table class="repartition-table">
+      <thead>
+        <tr>
+          <th class="txt-left">Type de recette</th>
+          <th class="txt-right">Montant (${sym})</th>
+          <th class="txt-right">Dîme 10 %</th>
+          <th class="txt-right">Social (${socialPct}%)</th>
+          <th class="txt-right">Reste</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Offrandes ordinaires</td>
+          <td class="txt-right">${fc(data.ordinaires)}</td>
+          <td class="txt-right">${fc(data.ordinaires * 0.1)}</td>
+          <td class="txt-right">${fc(data.ordinaires * (socialPct/100))}</td>
+          <td class="txt-right">${fc(data.ordinaires * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td>Offrandes pour Orateur</td>
+          <td class="txt-right">${fc(data.orateur)}</td>
+          <td class="txt-right">${fc(0)}</td>
+          <td class="txt-right">${fc(0)}</td>
+          <td class="txt-right">${fc(data.orateur)}</td>
+        </tr>
+        <tr>
+          <td>Dîmes</td>
+          <td class="txt-right">${fc(data.dimes)}</td>
+          <td class="txt-right">${fc(data.dimes * 0.1)}</td>
+          <td class="txt-right">${fc(data.dimes * (socialPct/100))}</td>
+          <td class="txt-right">${fc(data.dimes * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr>
+          <td>Actions de Grâce</td>
+          <td class="txt-right">${fc(data.actionsGrace)}</td>
+          <td class="txt-right">${fc(data.actionsGrace * 0.1)}</td>
+          <td class="txt-right">${fc(data.actionsGrace * (socialPct/100))}</td>
+          <td class="txt-right">${fc(data.actionsGrace * (1 - 0.1 - socialPct/100))}</td>
+        </tr>
+        <tr class="row-total">
+          <td>TOTAL</td>
+          <td class="txt-right">${fc(data.totalRecettes)}</td>
+          <td class="txt-right">${fc(data.dimeTotal)}</td>
+          <td class="txt-right">${fc(data.socialTotal)}</td>
+          <td class="txt-right">${fc(data.resteTotal)}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <!-- RÉSUMÉ FINANCIER -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Résumé Financier</h3>
-    <table class="w-full border-collapse text-sm">
+  <div class="section">
+    <div class="section-title">Résumé Financier</div>
+    <table class="resume-table">
       <tbody>
-        <tr class="bg-gray-100"><td class="border border-black px-3 py-2 font-bold">Total Recettes</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.totalRecettes)}</td></tr>
-        <tr><td class="border border-black px-3 py-2">- Prélèvement Dîme (10%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.dimeTotal)}</td></tr>
-        <tr><td class="border border-black px-3 py-2">- Prélèvement Social (${socialPct}%)</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.socialTotal)}</td></tr>
-        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Montant Disponible</td><td class="border border-black px-3 py-2 text-right font-bold">${fmtTRY(data.resteTotal)}</td></tr>
-        <tr><td class="border border-black px-3 py-2">- Total Dépenses</td><td class="border border-black px-3 py-2 text-right text-red-600">${fmtTRY(data.totalDepenses)}</td></tr>
-        <tr class="bg-gray-200"><td class="border border-black px-3 py-2 font-bold">= Solde Final</td><td class="border border-black px-3 py-2 text-right font-bold ${data.soldeFinal >= 0 ? 'text-green-700' : 'text-red-700'}">${fmtTRY(data.soldeFinal)}</td></tr>
+        <tr>
+          <td class="label">Total Recettes</td>
+          <td class="amount">${fc(data.totalRecettes)}</td>
+        </tr>
+        <tr>
+          <td class="label">− Prélèvement Dîme (10%)</td>
+          <td class="amount amount-negative">− ${fc(data.dimeTotal)}</td>
+        </tr>
+        <tr>
+          <td class="label">− Prélèvement Social (${socialPct}%)</td>
+          <td class="amount amount-negative">− ${fc(data.socialTotal)}</td>
+        </tr>
+        <tr class="subtotal">
+          <td class="label">= Montant Disponible</td>
+          <td class="amount">${fc(data.resteTotal)}</td>
+        </tr>
+        <tr>
+          <td class="label">− Total Dépenses</td>
+          <td class="amount amount-negative">− ${fc(data.totalDepenses)}</td>
+        </tr>
+        <tr class="final">
+          <td class="label">= Solde Final</td>
+          <td class="amount ${data.soldeFinal >= 0 ? 'amount-positive' : 'amount-negative'}">${fc(data.soldeFinal)}</td>
+        </tr>
       </tbody>
     </table>
   </div>
 
   <!-- AUTRES STATISTIQUES -->
-  <div class="mb-6">
-    <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-black">Autres Statistiques</h3>
-    <div class="grid grid-cols-3 gap-4 text-sm">
-      <div><span class="font-bold">Nombre de cultes :</span> ${data.cultes}</div>
-      <div><span class="font-bold">Présence totale :</span> ${data.presence}</div>
-      <div><span class="font-bold">Présence moyenne :</span> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
-      <div><span class="font-bold">Nouveaux convertis :</span> ${data.nouveaux}</div>
-      <div><span class="font-bold">Moyenne offrandes/culte :</span> ${fmtTRY(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
+  <div class="section">
+    <div class="section-title">Autres Statistiques</div>
+    <div class="other-stats">
+      <div class="stat-item"><strong>Nombre de cultes :</strong> ${data.cultes}</div>
+      <div class="stat-item"><strong>Présence totale :</strong> ${data.presence}</div>
+      <div class="stat-item"><strong>Présence moyenne :</strong> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
+      <div class="stat-item"><strong>Nouveaux convertis :</strong> ${data.nouveaux}</div>
+      <div class="stat-item"><strong>Moyenne offrandes/culte :</strong> ${fc(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
     </div>
   </div>
 
   <!-- SIGNATURES -->
-  <div class="mt-12 pt-4 border-t-4 border-black">
-    <div class="grid grid-cols-3 gap-4 text-sm">
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Secrétaire</div>
-      </div>
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Trésorier</div>
-      </div>
-      <div class="text-center">
-        <div class="border-b-2 border-black mb-2 pb-8"></div>
-        <div class="font-bold">Pasteur</div>
-      </div>
+  <div class="sig-block">
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Secrétaire</div>
+    </div>
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Trésorier</div>
+    </div>
+    <div class="sig-item">
+      <div class="sig-line"></div>
+      <div class="sig-role">Pasteur</div>
     </div>
   </div>
 
-  <div class="no-print mt-8 text-center">
-    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg">
-      Imprimer / Enregistrer PDF
-    </button>
+  <!-- Bouton impression (masqué à l'impression) -->
+  <div class="no-print print-bar">
+    <button onclick="window.print()">Imprimer / Enregistrer PDF</button>
+    <p>Utilisez « Enregistrer sous PDF » dans la boîte de dialogue d'impression</p>
   </div>
 </body>
 </html>`;

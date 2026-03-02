@@ -18,6 +18,15 @@ export function fmtTRY(v: unknown): string {
   });
 }
 
+// Dynamic currency format: symbole + space + fr-FR formatted number
+export function fmtCur(v: unknown, symbole = "€"): string {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? "")) || 0;
+  return symbole + " " + n.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function fmtD(d?: string | null): string {
   if (!d) return "—";
   try {
