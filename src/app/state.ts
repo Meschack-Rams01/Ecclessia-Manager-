@@ -4,6 +4,23 @@ import { getSupabaseClient } from "../infrastructure/supabase/client";
 export type RapportDepense = { motif: string; montant: number };
 export type RapportConverti = { nom: string; tel?: string };
 export type DepenseSupp = { id: string; extensionId: string; date: string; motif: string; montant: number; deviseRecue?: string; tauxChange?: number };
+
+// Single offering entry with currency info
+export type OffreEntry = {
+  montant: number;
+  devise: string;
+  tauxChange: number;
+};
+
+// Multi-currency offering type
+export type RapportOffrandes = {
+  ordinaires: OffreEntry[];
+  orateur: OffreEntry[];
+  dimes: OffreEntry[];
+  actionsGrace: OffreEntry[];
+  total: number;
+};
+
 export type Rapport = {
   id: string;
   extensionId: string;
@@ -16,14 +33,12 @@ export type Rapport = {
   theme?: string;
   textes?: string;
   effectif?: { papas: number; mamans: number; freres: number; soeurs: number; enfants: number; total: number };
-  offrandes?: { ordinaires: number; orateur: number; dimes: number; actionsGrace: number; total: number };
+  offrandes?: RapportOffrandes;
   ventilation?: {
-    // Detailed breakdown per offering type
     ordinaires: { dime: number; social: number; reste: number };
     orateur: { dime: number; social: number; reste: number };
     dimes: { dime: number; social: number; reste: number };
     actionsGrace: { dime: number; social: number; reste: number };
-    // Totals
     totalDime: number;
     totalSocial: number;
     reste: number;
@@ -34,9 +49,6 @@ export type Rapport = {
   nouveaux?: RapportConverti[];
   signatures?: { secretaire: string; tresorier: string; pasteur: string };
   updatedAt?: string;
-  // Currency conversion
-  deviseRecue?: string;
-  tauxChange?: number;
 };
 
 export type Session = { role: "admin" } | { role: "extension"; extId: string };
@@ -84,7 +96,13 @@ export function seedIfNeeded(): void {
             enfants: Math.floor(pres * 0.1),
             total: pres,
           },
-          offrandes: { ordinaires: ord, orateur: or, dimes, actionsGrace: ag, total: tot },
+          offrandes: { 
+            ordinaires: [{ montant: ord, devise: ext.devise, tauxChange: 1 }], 
+            orateur: [{ montant: or, devise: ext.devise, tauxChange: 1 }], 
+            dimes: [{ montant: dimes, devise: ext.devise, tauxChange: 1 }], 
+            actionsGrace: [{ montant: ag, devise: ext.devise, tauxChange: 1 }], 
+            total: tot 
+          },
           ventilation: {
             ordinaires: { dime: +Number(ord * 0.1).toFixed(2), social: 0, reste: +Number(ord * 0.9).toFixed(2) },
             orateur: { dime: 0, social: 0, reste: or },

@@ -1,6 +1,6 @@
 import { Store, Auth, seedIfNeeded, type Rapport, type DepenseSupp } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
-import { fmt, fmtD, fmtTRY, fmtCur, uid, mName, setCurrentSymbol } from "./utils";
+import { fmt, fmtD, fmtTRY, fmtCur, uid, mName, setCurrentSymbol, calcTotalOffres } from "./utils";
 import { icon } from "./icons";
 import { syncFromSupabase, subscribeToExtensions } from "./supabase";
 import { createAppContext, type AppContext } from "./context";
@@ -1597,10 +1597,10 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
   };
 
   raps.forEach(r => {
-    data.ordinaires += r.offrandes?.ordinaires || 0;
-    data.orateur += r.offrandes?.orateur || 0;
-    data.dimes += r.offrandes?.dimes || 0;
-    data.actionsGrace += r.offrandes?.actionsGrace || 0;
+    data.ordinaires += calcTotalOffres(r.offrandes?.ordinaires);
+    data.orateur += calcTotalOffres(r.offrandes?.orateur);
+    data.dimes += calcTotalOffres(r.offrandes?.dimes);
+    data.actionsGrace += calcTotalOffres(r.offrandes?.actionsGrace);
     data.totalRecettes += r.offrandes?.total || 0;
     data.dimeTotal += r.ventilation?.totalDime || 0;
     data.socialTotal += r.ventilation?.totalSocial || 0;
@@ -1789,7 +1789,7 @@ function pgAdminBilansFinancier() {
     <div class="card mb-12">
       <div class="flex justify-between items-center mb-12">
         <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
-        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal()">+ Ajouter</button>
+        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extIdToUse}')">+ Ajouter</button>
       </div>
       ${data.depSupp && data.depSupp.length > 0 ? `
       <table class="w-full">
@@ -2741,6 +2741,7 @@ function pgExtNew(extId: string) {
   // const params = curParams(); // reserved for future edit-mode support
   // Only reset if explicitly editing an existing rap or no form data exists
   if (!rapFormData) {
+    const extDevise = ext?.devise || 'EUR';
     rapFormData = {
       id: uid(),
       extensionId: extId,
@@ -2750,7 +2751,13 @@ function pgExtNew(extId: string) {
       moderateur: ext?.coordinateur || "",
       predicateur: ext?.pasteur.nom || "",
       effectif: { papas: 0, mamans: 0, freres: 0, soeurs: 0, enfants: 0, total: 0 },
-      offrandes: { ordinaires: 0, orateur: 0, dimes: 0, actionsGrace: 0, total: 0 },
+      offrandes: { 
+        ordinaires: [{ montant: 0, devise: extDevise, tauxChange: 1 }], 
+        orateur: [{ montant: 0, devise: extDevise, tauxChange: 1 }], 
+        dimes: [{ montant: 0, devise: extDevise, tauxChange: 1 }], 
+        actionsGrace: [{ montant: 0, devise: extDevise, tauxChange: 1 }], 
+        total: 0 
+      },
       ventilation: {
         ordinaires: { dime: 0, social: 0, reste: 0 },
         orateur: { dime: 0, social: 0, reste: 0 },
@@ -2853,10 +2860,10 @@ function renderStepContent(r: Rapport, sym: string): string {
     case 2: {
       const ext = Store.getExt(r.extensionId);
       const socialPct = (Store.getSet().socialPct ?? 10) / 100;
-      const ord = r.offrandes?.ordinaires || 0;
-      const ora = r.offrandes?.orateur || 0;
-      const dim = r.offrandes?.dimes || 0;
-      const ag = r.offrandes?.actionsGrace || 0;
+      const ord = calcTotalOffres(r.offrandes?.ordinaires);
+      const ora = calcTotalOffres(r.offrandes?.orateur);
+      const dim = calcTotalOffres(r.offrandes?.dimes);
+      const ag = calcTotalOffres(r.offrandes?.actionsGrace);
       const tot = ord + ora + dim + ag;
       // Calculate ventilation breakdown
       // Rules: 
@@ -2870,44 +2877,64 @@ function renderStepContent(r: Rapport, sym: string): string {
       const totalDime = +(ordDime + dimDime + agDime).toFixed(2);
       const totalSocial = +(ordSocial + dimSocial + agSocial).toFixed(2);
       const totalReste = +(ordReste + oraReste + dimReste + agReste).toFixed(2);
+      
+      // Build offering entries HTML for each type
+      const buildOffreEntries = (entries: { montant: number; devise: string; tauxChange: number }[], type: string) => {
+        if (!entries || entries.length === 0) {
+          return `<div class="offre-entry-row flex gap-2 items-center mb-2" data-type="${type}">
+            <input type="number" class="offre-montant form-input" placeholder="Montant" min="0" step="0.01" value="" />
+            <select class="offre-devise form-input">
+              ${DEVISES.map(d => `<option value="${d.c}" data-s="${d.s}" ${(ext?.devise || 'EUR') === d.c ? 'selected' : ''}>${d.c} (${d.s})</option>`).join('')}
+            </select>
+            <input type="number" class="offre-taux form-input" placeholder="Taux" value="1" min="0.0001" step="0.0001" style="width:100px" />
+            <button type="button" class="btn btn-red btn-sm" onclick="removeOffreRow(this)">×</button>
+          </div>`;
+        }
+        return entries.map((e) => `<div class="offre-entry-row flex gap-2 items-center mb-2" data-type="${type}">
+          <input type="number" class="offre-montant form-input" placeholder="Montant" min="0" step="0.01" value="${e.montant}" />
+          <select class="offre-devise form-input">
+            ${DEVISES.map(d => `<option value="${d.c}" data-s="${d.s}" ${e.devise === d.c ? 'selected' : ''}>${d.c} (${d.s})</option>`).join('')}
+          </select>
+          <input type="number" class="offre-taux form-input" placeholder="Taux" value="${e.tauxChange}" min="0.0001" step="0.0001" style="width:100px" />
+          <button type="button" class="btn btn-red btn-sm" onclick="removeOffreRow(this)">×</button>
+        </div>`).join('');
+      };
+      
+      const ordEntries = r.offrandes?.ordinaires || [{ montant: 0, devise: ext?.devise || 'EUR', tauxChange: 1 }];
+      const oraEntries = r.offrandes?.orateur || [{ montant: 0, devise: ext?.devise || 'EUR', tauxChange: 1 }];
+      const dimEntries = r.offrandes?.dimes || [{ montant: 0, devise: ext?.devise || 'EUR', tauxChange: 1 }];
+      const agEntries = r.offrandes?.actionsGrace || [{ montant: 0, devise: ext?.devise || 'EUR', tauxChange: 1 }];
+      
       return `
-        <div class="form-section-title">Offrandes (${sym})</div>
-        <div class="form-row cols-2">
-          <div><label>Offrandes ordinaires</label><input type="number" id="rf-ord" value="${ord}" min="0" onchange="updateOffTotals()" /></div>
-          <div><label>Offrande orateur</label><input type="number" id="rf-ora" value="${ora}" min="0" onchange="updateOffTotals()" /></div>
+        <div class="form-section-title">Offrandes - Offrandes ordinaires</div>
+        <div class="mb-4">
+          <div id="rf-ord-entries">${buildOffreEntries(ordEntries, 'ordinaires')}</div>
+          <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="addOffreRow('ordinaires')">+ Ajouter une entrée</button>
         </div>
-        <div class="form-row cols-2">
-          <div><label>Dîmes</label><input type="number" id="rf-dim" value="${dim}" min="0" onchange="updateOffTotals()" /></div>
-          <div><label>Actions de grâce</label><input type="number" id="rf-ag" value="${ag}" min="0" onchange="updateOffTotals()" /></div>
+        
+        <div class="form-section-title">Offrandes - Offrande orateur</div>
+        <div class="mb-4">
+          <div id="rf-ora-entries">${buildOffreEntries(oraEntries, 'orateur')}</div>
+          <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="addOffreRow('orateur')">+ Ajouter une entrée</button>
         </div>
+        
+        <div class="form-section-title">Offrandes - Dîmes</div>
+        <div class="mb-4">
+          <div id="rf-dim-entries">${buildOffreEntries(dimEntries, 'dimes')}</div>
+          <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="addOffreRow('dimes')">+ Ajouter une entrée</button>
+        </div>
+        
+        <div class="form-section-title">Offrandes - Actions de grâce</div>
+        <div class="mb-4">
+          <div id="rf-ag-entries">${buildOffreEntries(agEntries, 'actionsGrace')}</div>
+          <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="addOffreRow('actionsGrace')">+ Ajouter une entrée</button>
+        </div>
+        
         <div class="total-box mt-12">
-          <span class="total-box-label">Total offrandes</span>
+          <span class="total-box-label">Total offrandes (converti)</span>
           <span class="total-box-value" id="rf-off-total">${fmt(tot, sym)}</span>
         </div>
-        <div class="form-section-title mt-20">CONVERSION DE DEVISES</div>
-        <p class="text-sm text-gray-600 mb-4">Si les offrandes ont été reçues dans une autre devise, indiquez-la ici.</p>
-        <div class="form-row cols-2">
-          <div>
-            <label>Devise reçue</label>
-            <select id="rf-devise-recue">
-              ${DEVISES.map(d => `<option value="${d.c}" data-s="${d.s}" ${(r.deviseRecue || ext?.devise || 'EUR') === d.c ? 'selected' : ''}>${d.c} — ${d.s}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label>Taux de change</label>
-            <input type="number" id="rf-taux-change" value="${r.tauxChange || 1}" min="0.0001" step="0.0001" />
-          </div>
-        </div>
-        <p class="text-sm text-gray-500 mt-2">Montant converti: <strong id="rf-montant-converti">${fmt(tot * (r.tauxChange || 1), sym)}</strong></p>
-        <script>
-          document.getElementById('rf-devise-recue').addEventListener('change', updateMontantConverti);
-          document.getElementById('rf-taux-change').addEventListener('input', updateMontantConverti);
-          function updateMontantConverti() {
-            const taux = parseFloat(document.getElementById('rf-taux-change').value) || 1;
-            const total = ${tot};
-            document.getElementById('rf-montant-converti').textContent = '${sym}' + (total * taux).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-          }
-        </script>
+        
         <div class="form-section-title mt-20">RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS</div>
         <div class="table-wrap mt-12">
           <table>
@@ -3025,37 +3052,85 @@ function saveStep1() {
 }
 
 function updateOffTotals() {
-  const ord = parseInt((document.getElementById("rf-ord") as HTMLInputElement).value) || 0;
-  const ora = parseInt((document.getElementById("rf-ora") as HTMLInputElement).value) || 0;
-  const dim = parseInt((document.getElementById("rf-dim") as HTMLInputElement).value) || 0;
-  const ag = parseInt((document.getElementById("rf-ag") as HTMLInputElement).value) || 0;
+  const getEntries = (type: string) => {
+    const container = document.getElementById(`rf-${type}-entries`);
+    if (!container) return [];
+    const rows = container.querySelectorAll('.offre-entry-row');
+    const entries: { montant: number; devise: string; tauxChange: number }[] = [];
+    rows.forEach(row => {
+      const montant = parseFloat((row.querySelector('.offre-montant') as HTMLInputElement)?.value) || 0;
+      const devise = (row.querySelector('.offre-devise') as HTMLSelectElement)?.value || 'EUR';
+      const tauxChange = parseFloat((row.querySelector('.offre-taux') as HTMLInputElement)?.value) || 1;
+      if (montant > 0) {
+        entries.push({ montant, devise, tauxChange });
+      }
+    });
+    return entries;
+  };
+
+  const ordEntries = getEntries('ord');
+  const oraEntries = getEntries('ora');
+  const dimEntries = getEntries('dim');
+  const agEntries = getEntries('ag');
+
+  const calcTotal = (entries: { montant: number; tauxChange: number }[]) => 
+    entries.reduce((sum, e) => sum + (e.montant * e.tauxChange), 0);
+
+  const ord = calcTotal(ordEntries);
+  const ora = calcTotal(oraEntries);
+  const dim = calcTotal(dimEntries);
+  const ag = calcTotal(agEntries);
   const tot = ord + ora + dim + ag;
+
   const ext = Store.getExt(rapFormData?.extensionId || "");
   const sym = ext?.symbole || "€";
 
-  document.getElementById("rf-off-total")!.textContent = fmt(tot, sym);
-
-  // Backward-compat: these IDs may not exist depending on UI version.
-  const eDim = document.getElementById("rf-vent-dim");
-  if (eDim) eDim.textContent = fmt(dim * 0.1, sym);
-  const eSoc = document.getElementById("rf-vent-soc");
-  if (eSoc) eSoc.textContent = fmt(tot * 0.1, sym);
-  const eRes = document.getElementById("rf-vent-reste");
-  if (eRes) eRes.textContent = fmt(tot * 0.8, sym);
+  const el = document.getElementById("rf-off-total");
+  if (el) el.textContent = fmt(tot, sym);
 }
 
 function saveStep2() {
   if (!rapFormData) return;
-  const ord = parseInt((document.getElementById("rf-ord") as HTMLInputElement).value) || 0;
-  const ora = parseInt((document.getElementById("rf-ora") as HTMLInputElement).value) || 0;
-  const dim = parseInt((document.getElementById("rf-dim") as HTMLInputElement).value) || 0;
-  const ag = parseInt((document.getElementById("rf-ag") as HTMLInputElement).value) || 0;
+  
+  // Get entries from DOM
+  const getEntries = (type: string): { montant: number; devise: string; tauxChange: number }[] => {
+    const container = document.getElementById(`rf-${type}-entries`);
+    if (!container) return [];
+    const rows = container.querySelectorAll('.offre-entry-row');
+    const entries: { montant: number; devise: string; tauxChange: number }[] = [];
+    rows.forEach(row => {
+      const montant = parseFloat((row.querySelector('.offre-montant') as HTMLInputElement)?.value) || 0;
+      const devise = (row.querySelector('.offre-devise') as HTMLSelectElement)?.value || 'EUR';
+      const tauxChange = parseFloat((row.querySelector('.offre-taux') as HTMLInputElement)?.value) || 1;
+      if (montant > 0) {
+        entries.push({ montant, devise, tauxChange });
+      }
+    });
+    return entries;
+  };
+
+  const ext = Store.getExt(rapFormData.extensionId);
+  const extDevise = ext?.devise || 'EUR';
+
+  const ordEntries = getEntries('ord');
+  const oraEntries = getEntries('ora');
+  const dimEntries = getEntries('dim');
+  const agEntries = getEntries('ag');
+
+  // Calculate totals (converted to extension currency)
+  const calcTotal = (entries: { montant: number; tauxChange: number }[]) =>
+    entries.reduce((sum, e) => sum + (e.montant * e.tauxChange), 0);
+
+  const ord = calcTotal(ordEntries);
+  const ora = calcTotal(oraEntries);
+  const dim = calcTotal(dimEntries);
+  const ag = calcTotal(agEntries);
   const total = ord + ora + dim + ag;
 
   // Get social percentage from settings (default 10%)
   const socialPct = (Store.getSet().socialPct ?? 10) / 100;
 
-  // Calculate detailed breakdown
+  // Calculate detailed breakdown (on converted amounts)
   const ordDime = +(ord * 0.1).toFixed(2);
   const ordSocial = +(ord * socialPct).toFixed(2);
   const ordReste = +(ord - ordDime - ordSocial).toFixed(2);
@@ -3072,11 +3147,18 @@ function saveStep2() {
   const agSocial = +(ag * socialPct).toFixed(2);
   const agReste = +(ag - agDime - agSocial).toFixed(2);
 
-  const totalDime = +(ord * 0.1 + dimDime + ag * 0.1).toFixed(2);
+  const totalDime = +(ordDime + dimDime + agDime).toFixed(2);
   const totalSocial = +(ordSocial + dimSocial + agSocial).toFixed(2);
   const totalReste = +(ordReste + oraReste + dimReste + agReste).toFixed(2);
 
-  rapFormData.offrandes = { ordinaires: ord, orateur: ora, dimes: dim, actionsGrace: ag, total };
+  // Save with new multi-currency format
+  rapFormData.offrandes = {
+    ordinaires: ordEntries.length > 0 ? ordEntries : [{ montant: 0, devise: extDevise, tauxChange: 1 }],
+    orateur: oraEntries.length > 0 ? oraEntries : [{ montant: 0, devise: extDevise, tauxChange: 1 }],
+    dimes: dimEntries.length > 0 ? dimEntries : [{ montant: 0, devise: extDevise, tauxChange: 1 }],
+    actionsGrace: agEntries.length > 0 ? agEntries : [{ montant: 0, devise: extDevise, tauxChange: 1 }],
+    total
+  };
   rapFormData.ventilation = {
     ordinaires: { dime: ordDime, social: ordSocial, reste: ordReste },
     orateur: { dime: oraDime, social: oraSocial, reste: oraReste },
@@ -3086,27 +3168,6 @@ function saveStep2() {
     totalSocial,
     reste: totalReste,
   };
-  
-  // Currency conversion fields
-  const deviseRecue = (document.getElementById("rf-devise-recue") as HTMLSelectElement).value;
-  const tauxChange = parseFloat((document.getElementById("rf-taux-change") as HTMLInputElement).value) || 1;
-  rapFormData.deviseRecue = deviseRecue;
-  rapFormData.tauxChange = tauxChange;
-  
-  // Convert amounts if different currency
-  if (deviseRecue && tauxChange && tauxChange !== 1) {
-    const ext = Store.getExt(rapFormData.extensionId);
-    const extDevise = ext?.devise || 'EUR';
-    if (deviseRecue !== extDevise) {
-      rapFormData.offrandes = {
-        ordinaires: +(ord * tauxChange).toFixed(2),
-        orateur: +(ora * tauxChange).toFixed(2),
-        dimes: +(dim * tauxChange).toFixed(2),
-        actionsGrace: +(ag * tauxChange).toFixed(2),
-        total: +(total * tauxChange).toFixed(2),
-      };
-    }
-  }
   
   rapStep = 3;
   const ses = Auth.ses();
@@ -3408,7 +3469,7 @@ function pgExtBilans(extId: string) {
     <div class="card mb-12">
       <div class="flex justify-between items-center mb-12">
         <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
-        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal()">+ Ajouter</button>
+        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extId}')">+ Ajouter</button>
       </div>
       ${currentYearData.depSupp && currentYearData.depSupp.length > 0 ? `
       <table class="w-full">
@@ -4267,6 +4328,32 @@ export async function initApp() {
   window.updateEffTotal = updateEffTotal;
   window.updateOffTotals = updateOffTotals;
   window.updateDepTotal = updateDepTotal;
+  
+  // Multi-currency offering functions
+  window.addOffreRow = function(type: string) {
+    const container = document.getElementById(`rf-${type}-entries`);
+    if (!container) return;
+    const ext = Store.getExt(rapFormData?.extensionId || '');
+    const devise = ext?.devise || 'EUR';
+    const div = document.createElement('div');
+    div.className = 'offre-entry-row flex gap-2 items-center mb-2';
+    div.setAttribute('data-type', type);
+    div.innerHTML = `
+      <input type="number" class="offre-montant form-input" placeholder="Montant" min="0" step="0.01" value="" />
+      <select class="offre-devise form-input">
+        ${DEVISES.map(d => `<option value="${d.c}" data-s="${d.s}" ${devise === d.c ? 'selected' : ''}>${d.c} (${d.s})</option>`).join('')}
+      </select>
+      <input type="number" class="offre-taux form-input" placeholder="Taux" value="1" min="0.0001" step="0.0001" style="width:100px" />
+      <button type="button" class="btn btn-red btn-sm" onclick="removeOffreRow(this)">×</button>
+    `;
+    container.appendChild(div);
+  };
+  
+  window.removeOffreRow = function(btn: HTMLButtonElement) {
+    const row = btn.closest('.offre-entry-row');
+    if (row) row.remove();
+    updateOffTotals();
+  };
 
   // Admin functions used in onclick handlers
   window.pgAdminExts = pgAdminExts;

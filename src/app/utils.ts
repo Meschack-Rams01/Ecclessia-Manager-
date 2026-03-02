@@ -68,3 +68,38 @@ export function esc(s?: string | null): string {
   return (s || "").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+// Helper type for multi-currency offerings
+type OffreEntry = { montant: number; devise: string; tauxChange: number };
+type OffresType = OffreEntry[];
+
+// Calculate total from multi-currency entries
+export function calcTotalOffres(entries: OffresType | undefined): number {
+  if (!entries || !Array.isArray(entries)) return 0;
+  return entries.reduce((sum, e) => {
+    const converted = e.montant * e.tauxChange;
+    return sum + converted;
+  }, 0);
+}
+
+// Format entries for display (shows all currencies)
+export function fmtOffresEntries(entries: OffresType | undefined, extDevise: string, extSymbole: string): string {
+  if (!entries || entries.length === 0) return "—";
+  if (entries.length === 1 && entries[0].devise === extDevise) {
+    return fmt(entries[0].montant * entries[0].tauxChange, extSymbole);
+  }
+  // Multiple currencies - show each with its symbol
+  return entries.map(e => {
+    const sym = getDeviseSymbole(e.devise);
+    const converted = e.montant * e.tauxChange;
+    return `${fmt(converted, sym)} (${e.devise})`;
+  }).join(" + ");
+}
+
+// Get symbole from devise code
+export function getDeviseSymbole(devise: string): string {
+  const deviseMap: Record<string, string> = {
+    EUR: "€", USD: "$", GBP: "£", CDF: "FC", XAF: "FCFA", XOF: "CFA", NGN: "₦", TRY: "₺", CHF: "CHF"
+  };
+  return deviseMap[devise] || devise;
+}
+

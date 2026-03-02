@@ -16,7 +16,13 @@ describe("upsertRapport()", () => {
       id: "r1",
       extensionId: "ext1",
       date: "2026-01-01",
-      offrandes: { ordinaires: 100, orateur: 50, dimes: 0, actionsGrace: 0, total: 0 },
+      offrandes: { 
+        ordinaires: [{ montant: 100, devise: 'EUR', tauxChange: 1 }], 
+        orateur: [{ montant: 50, devise: 'EUR', tauxChange: 1 }], 
+        dimes: [{ montant: 0, devise: 'EUR', tauxChange: 1 }], 
+        actionsGrace: [{ montant: 0, devise: 'EUR', tauxChange: 1 }], 
+        total: 0 
+      },
       depenses: [{ motif: "x", montant: 10 }],
     };
 

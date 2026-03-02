@@ -19,4 +19,6 @@ interface Window {
   deleteDepSupp: (id: string) => void;
   showAddDepSuppModal: () => void;
   saveDepSupp: () => void;
+  addOffreRow: (type: string) => void;
+  removeOffreRow: (btn: HTMLButtonElement) => void;
 }
