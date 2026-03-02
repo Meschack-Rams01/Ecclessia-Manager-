@@ -22,7 +22,15 @@ export class SupabaseRapportRepository implements RapportRepository {
   }
 
   async upsert(rap: Rapport): Promise<void> {
-    const { error } = await this.client.from("rapports").upsert({ id: rap.id, data: rap }, { onConflict: "id" });
+    const { error } = await this.client.from("rapports").upsert(
+      {
+        id: rap.id,
+        extension_id: rap.extensionId,
+        date: rap.date,
+        data: rap,
+      },
+      { onConflict: "id" },
+    );
     if (error) throw error;
   }
 
