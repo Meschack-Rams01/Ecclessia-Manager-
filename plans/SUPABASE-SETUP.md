@@ -84,9 +84,21 @@ CREATE TABLE IF NOT EXISTS depenses_supplementaires (
   date DATE NOT NULL,
   motif TEXT NOT NULL,
   montant DECIMAL(12,2) NOT NULL,
+  devise_recue TEXT DEFAULT 'EUR',
+  taux_change DECIMAL(10,4) DEFAULT 1,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+```
+
+### Add columns for currency conversion (optional - for existing tables)
+
+```sql
+-- For existing rapports table (add if not exists)
+ALTER TABLE rapports ADD COLUMN IF NOT EXISTS devise_recue TEXT DEFAULT 'EUR';
+ALTER TABLE rappports ADD COLUMN IF NOT EXISTS taux_change DECIMAL(10,4) DEFAULT 1;
+
+-- Note: The JSONB 'data' field also stores this info for flexibility
 ```
 
 ### Create Indexes (for performance)

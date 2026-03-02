@@ -1,6 +1,6 @@
 import { Store, Auth, seedIfNeeded, type Rapport, type DepenseSupp } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
-import { fmt, fmtD, fmtTRY, fmtCur, uid, mName } from "./utils";
+import { fmt, fmtD, fmtTRY, fmtCur, uid, mName, setCurrentSymbol } from "./utils";
 import { icon } from "./icons";
 import { syncFromSupabase, subscribeToExtensions } from "./supabase";
 import { createAppContext, type AppContext } from "./context";
@@ -10,7 +10,7 @@ import { openModal, closeModal } from "./ui/modal";
 import { pgAdminExtsPage } from "./pages/admin/pgAdminExtsPage";
 import { pgAdminDashPage } from "./pages/admin/pgAdminDashPage";
 import { pgAdminSettingsPage } from "./pages/admin/pgAdminSettingsPage";
-import { escapeHtml, validateInput } from "./security";
+import { validateInput } from "./security";
 
 declare global {
   interface Window {
@@ -93,14 +93,6 @@ function render(html: string) {
   const page = document.getElementById("page")!;
   page.innerHTML = html;
   page.scrollTop = 0;
-}
-
-function renderSafe(html: string) {
-  const page = document.getElementById("page")!;
-  const template = document.createElement('template');
-  template.innerHTML = html;
-  page.innerHTML = '';
-  page.appendChild(template.content);
 }
 
 function buildNav(def: typeof ADMIN_NAV) {
@@ -314,6 +306,7 @@ function showRapModal(rapId: string) {
   const r = Store.getRap(rapId);
   if (!r) return;
   const ext = Store.getExt(r.extensionId);
+  setCurrentSymbol(ext?.symbole);
   const v = r.ventilation;
   const socialPct = Store.getSet().socialPct || 10;
   const logo = Store.getLogo();
@@ -513,6 +506,7 @@ function doExportPDF(rapId: string) {
   const r = Store.getRap(rapId);
   if (!r) return;
   const ext = Store.getExt(r.extensionId);
+  setCurrentSymbol(ext?.symbole);
 
   const { jsPDF } = (window as any).jspdf;
   const doc = new jsPDF();
@@ -759,6 +753,7 @@ function doExportHTML(rapId: string) {
   const r = Store.getRap(rapId);
   if (!r) return;
   const ext = Store.getExt(r.extensionId);
+  setCurrentSymbol(ext?.symbole);
   const v = r.ventilation;
   const socialPct = Store.getSet().socialPct || 10;
   const logo = Store.getLogo();
@@ -1568,7 +1563,7 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
   }
 
   // Get depenses supplementaires for the period
-  let depSupp = Store.getDepSupp(extId).filter(d => {
+  const depSupp = Store.getDepSupp(extId).filter(d => {
     const dDate = new Date(d.date + "T00:00");
     if (dDate.getFullYear() !== year) return false;
     if (period === "monthly" && month !== undefined) {
@@ -1650,6 +1645,7 @@ function pgAdminBilansFinancier() {
   const data = getBilanData(extIdToUse, period, yr, month, quarter);
 
   const selectedExt = extId ? exts.find(e => e.id === extId) : null;
+  setCurrentSymbol(selectedExt?.symbole);
 
   render(`
     <div class="page-header">
@@ -1888,13 +1884,6 @@ function doExportBilanHTML() {
   // Period type labels
   const periodTypeLabel = period === "monthly" ? "MENSUEL" : period === "quarterly" ? "TRIMESTRIEL" : "ANNUEL";
   const churchName = ext?.nom || cfg.nom || "Emerge in Christ";
-
-  // Add CSS for dep-supp-table
-  const depSuppCSS = `
-    table.dep-supp-table th { background: #fee2e2; color: #991b1b; }
-    table.dep-supp-table td { vertical-align: middle; }
-    table.dep-supp-table .row-total td { background: #fecaca; border-top: 2px solid #dc2626; }
-  `;
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -2862,6 +2851,7 @@ function renderStepContent(r: Rapport, sym: string): string {
           <button class="btn btn-primary" onclick="saveStep1()">Suivant →</button>
         </div>`;
     case 2: {
+      const ext = Store.getExt(r.extensionId);
       const socialPct = (Store.getSet().socialPct ?? 10) / 100;
       const ord = r.offrandes?.ordinaires || 0;
       const ora = r.offrandes?.orateur || 0;
@@ -2894,6 +2884,30 @@ function renderStepContent(r: Rapport, sym: string): string {
           <span class="total-box-label">Total offrandes</span>
           <span class="total-box-value" id="rf-off-total">${fmt(tot, sym)}</span>
         </div>
+        <div class="form-section-title mt-20">CONVERSION DE DEVISES</div>
+        <p class="text-sm text-gray-600 mb-4">Si les offrandes ont été reçues dans une autre devise, indiquez-la ici.</p>
+        <div class="form-row cols-2">
+          <div>
+            <label>Devise reçue</label>
+            <select id="rf-devise-recue">
+              ${DEVISES.map(d => `<option value="${d.c}" data-s="${d.s}" ${(r.deviseRecue || ext?.devise || 'EUR') === d.c ? 'selected' : ''}>${d.c} — ${d.s}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Taux de change</label>
+            <input type="number" id="rf-taux-change" value="${r.tauxChange || 1}" min="0.0001" step="0.0001" />
+          </div>
+        </div>
+        <p class="text-sm text-gray-500 mt-2">Montant converti: <strong id="rf-montant-converti">${fmt(tot * (r.tauxChange || 1), sym)}</strong></p>
+        <script>
+          document.getElementById('rf-devise-recue').addEventListener('change', updateMontantConverti);
+          document.getElementById('rf-taux-change').addEventListener('input', updateMontantConverti);
+          function updateMontantConverti() {
+            const taux = parseFloat(document.getElementById('rf-taux-change').value) || 1;
+            const total = ${tot};
+            document.getElementById('rf-montant-converti').textContent = '${sym}' + (total * taux).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+          }
+        </script>
         <div class="form-section-title mt-20">RÉPARTITION DES RECETTES ET PRÉLÈVEMENTS</div>
         <div class="table-wrap mt-12">
           <table>
@@ -3072,6 +3086,28 @@ function saveStep2() {
     totalSocial,
     reste: totalReste,
   };
+  
+  // Currency conversion fields
+  const deviseRecue = (document.getElementById("rf-devise-recue") as HTMLSelectElement).value;
+  const tauxChange = parseFloat((document.getElementById("rf-taux-change") as HTMLInputElement).value) || 1;
+  rapFormData.deviseRecue = deviseRecue;
+  rapFormData.tauxChange = tauxChange;
+  
+  // Convert amounts if different currency
+  if (deviseRecue && tauxChange && tauxChange !== 1) {
+    const ext = Store.getExt(rapFormData.extensionId);
+    const extDevise = ext?.devise || 'EUR';
+    if (deviseRecue !== extDevise) {
+      rapFormData.offrandes = {
+        ordinaires: +(ord * tauxChange).toFixed(2),
+        orateur: +(ora * tauxChange).toFixed(2),
+        dimes: +(dim * tauxChange).toFixed(2),
+        actionsGrace: +(ag * tauxChange).toFixed(2),
+        total: +(total * tauxChange).toFixed(2),
+      };
+    }
+  }
+  
   rapStep = 3;
   const ses = Auth.ses();
   if (ses?.role === "extension") pgExtNew(ses.extId);
@@ -3202,6 +3238,7 @@ function pgExtRaps(params: Record<string, string> = {}) {
   if (!ses || ses.role !== "extension") return;
   const extId = ses.extId;
   const ext = Store.getExt(extId);
+  setCurrentSymbol(ext?.symbole);
   const fMonth = params.month !== undefined && params.month !== "" ? parseInt(params.month) : -1;
   const fYear = params.year ? parseInt(params.year) : 0;
 
@@ -3271,6 +3308,7 @@ window.doDeleteRap = function (id: string) {
 function pgExtBilans(extId: string) {
   setActive("/ext/bilans");
   const ext = Store.getExt(extId);
+  setCurrentSymbol(ext?.symbole);
   const yr = new Date().getFullYear();
   const mo = Store.monthly(extId, yr);
   const socialPct = Store.getSet().socialPct || 10;
@@ -3365,6 +3403,46 @@ function pgExtBilans(extId: string) {
       <div class="form-section-title mb-12">Présence mensuelle (${yr})</div>
       <div class="chart-wrap" style="height:200px"><canvas id="chM"></canvas></div>
     </div>
+
+    <!-- Dépenses Supplémentaires -->
+    <div class="card mb-12">
+      <div class="flex justify-between items-center mb-12">
+        <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
+        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal()">+ Ajouter</button>
+      </div>
+      ${currentYearData.depSupp && currentYearData.depSupp.length > 0 ? `
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Date</th>
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Motif</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Montant</th>
+            <th class="border border-gray-300 px-4 py-3 text-center font-bold w-16">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${currentYearData.depSupp.map(d => `
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">${fmtD(d.date)}</td>
+            <td class="border border-gray-300 px-4 py-3">${d.motif}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(d.montant)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-center">
+              <button class="btn btn-red btn-sm" onclick="deleteDepSupp('${d.id}')">Suppr</button>
+            </td>
+          </tr>
+          `).join('')}
+          <tr class="bg-gray-200 font-bold">
+            <td class="border border-gray-300 px-4 py-3" colspan="2">Total</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.totalDepSupp)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      ` : `
+      <p class="text-gray-500 text-center py-8">Aucune dépense supplémentaire enregistrée cette année.</p>
+      `}
+    </div>
+
     <div class="form-section-title mb-12">Détails mensuels</div>
     <div class="table-wrap">
       <table>
@@ -4208,11 +4286,30 @@ export async function initApp() {
     }
   };
 
-  window.showAddDepSuppModal = function() {
+  window.showAddDepSuppModal = function(extIdOverride?: string) {
+    // Get params from stored bilan params or URL
+    const bilanParams = (window as any)._bilanParams || {};
+    const extBilanParams = (window as any)._extBilanParams || {};
     const params = curParams();
-    const yr = params.year ? parseInt(params.year) : new Date().getFullYear();
-    const extId = params.ext || '';
+    
+    // Priority: 1. function parameter, 2. URL params, 3. stored params
+    let extId = extIdOverride || params.ext || bilanParams.extId || extBilanParams.extId || '';
+    
+    // If still empty, try to get from session
+    if (!extId) {
+      const ses = Auth.ses();
+      if (ses && ses.role === 'extension') {
+        extId = ses.extId;
+      }
+    }
+    
+    const yr = params.year ? parseInt(params.year) : bilanParams.yr || new Date().getFullYear();
     const ext = Store.getExt(extId);
+    
+    if (!extId) {
+      alert('Veuillez sélectionner une extension.');
+      return;
+    }
     
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -4237,6 +4334,16 @@ export async function initApp() {
             <label class="form-label">Montant (${ext?.symbole || '€'})</label>
             <input type="number" id="dep-supp-montant" class="form-input" placeholder="0.00" step="0.01" min="0" />
           </div>
+          <div class="form-group mb-4">
+            <label class="form-label">Devise reçue</label>
+            <select id="dep-supp-devise-recue" class="form-input">
+              ${DEVISES.map(d => `<option value="${d.c}" data-s="${d.s}" ${(ext?.devise || 'EUR') === d.c ? 'selected' : ''}>${d.c} — ${d.s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group mb-4">
+            <label class="form-label">Taux de change</label>
+            <input type="number" id="dep-supp-taux-change" class="form-input" placeholder="1" step="0.0001" min="0.0001" value="1" />
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
@@ -4251,11 +4358,19 @@ export async function initApp() {
     const extId = (document.getElementById('dep-supp-ext-id') as HTMLInputElement).value;
     const date = (document.getElementById('dep-supp-date') as HTMLInputElement).value;
     const motif = (document.getElementById('dep-supp-motif') as HTMLInputElement).value.trim();
-    const montant = parseFloat((document.getElementById('dep-supp-montant') as HTMLInputElement).value) || 0;
+    let montant = parseFloat((document.getElementById('dep-supp-montant') as HTMLInputElement).value) || 0;
+    const deviseRecue = (document.getElementById('dep-supp-devise-recue') as HTMLSelectElement).value;
+    const tauxChange = parseFloat((document.getElementById('dep-supp-taux-change') as HTMLInputElement).value) || 1;
 
     if (!motif || montant <= 0) {
       alert('Veuillez remplir tous les champs correctement.');
       return;
+    }
+
+    // Convert amount if different currency
+    const ext = Store.getExt(extId);
+    if (ext && deviseRecue !== ext.devise && tauxChange) {
+      montant = +(montant * tauxChange).toFixed(2);
     }
 
     const newDepSupp: DepenseSupp = {
@@ -4263,15 +4378,24 @@ export async function initApp() {
       extensionId: extId,
       date: date,
       motif: motif,
-      montant: montant
+      montant: montant,
+      deviseRecue: deviseRecue,
+      tauxChange: tauxChange
     };
 
     Store.saveDepSupp(newDepSupp);
     
-    // Close modal and refresh
+    // Close modal
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
-    const params = curParams();
-    navTo('/admin/bilans/financier', params);
+    
+    // Determine which page to refresh based on current user role
+    const ses = Auth.ses();
+    if (ses && ses.role === 'extension') {
+      pgExtBilans(ses.extId);
+    } else {
+      const params = curParams();
+      navTo('/admin/bilans/financier', params);
+    }
   };
 
   const ses = Auth.ses();

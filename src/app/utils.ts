@@ -1,7 +1,18 @@
+// Global currency symbol - set by the application based on current extension
+let currentSymbol = "€";
+
+export function setCurrentSymbol(sym: string | undefined) {
+  currentSymbol = sym || "€";
+}
+
+export function getCurrentSymbol(): string {
+  return currentSymbol;
+}
+
 export function fmt(v: unknown, sym = ""): string {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "")) || 0;
   return (
-    sym +
+    (sym || currentSymbol) +
     n.toLocaleString("fr-FR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -9,19 +20,19 @@ export function fmt(v: unknown, sym = ""): string {
   );
 }
 
-// Turkish Lira format: ₺ 1 850,00 (space as thousands separator, comma as decimal)
+// Dynamic currency format - uses current extension's symbol by default
 export function fmtTRY(v: unknown): string {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "")) || 0;
-  return "₺ " + n.toLocaleString("tr-TR", {
+  return currentSymbol + " " + n.toLocaleString("fr-FR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
-// Dynamic currency format: symbole + space + fr-FR formatted number
-export function fmtCur(v: unknown, symbole = "€"): string {
+// Explicit symbol format
+export function fmtCur(v: unknown, symbole = ""): string {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "")) || 0;
-  return symbole + " " + n.toLocaleString("fr-FR", {
+  return (symbole || currentSymbol) + " " + n.toLocaleString("fr-FR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

@@ -1,5 +1,5 @@
 import { K, type Extension } from "./constants";
-import type { Session, Settings } from "./state";
+import type { Settings } from "./state";
 import { hashPassword, verifyPassword, generateSessionToken } from "./security";
 
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours

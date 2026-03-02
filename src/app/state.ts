@@ -3,7 +3,7 @@ import { getSupabaseClient } from "../infrastructure/supabase/client";
 
 export type RapportDepense = { motif: string; montant: number };
 export type RapportConverti = { nom: string; tel?: string };
-export type DepenseSupp = { id: string; extensionId: string; date: string; motif: string; montant: number };
+export type DepenseSupp = { id: string; extensionId: string; date: string; motif: string; montant: number; deviseRecue?: string; tauxChange?: number };
 export type Rapport = {
   id: string;
   extensionId: string;
@@ -34,6 +34,9 @@ export type Rapport = {
   nouveaux?: RapportConverti[];
   signatures?: { secretaire: string; tresorier: string; pasteur: string };
   updatedAt?: string;
+  // Currency conversion
+  deviseRecue?: string;
+  tauxChange?: number;
 };
 
 export type Session = { role: "admin" } | { role: "extension"; extId: string };

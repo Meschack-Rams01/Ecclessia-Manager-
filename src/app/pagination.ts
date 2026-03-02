@@ -26,7 +26,7 @@ export function paginate<T>(
     sortOrder = 'asc'
   } = options;
 
-  let sorted = [...data];
+  const sorted = [...data];
   
   if (sortBy) {
     sorted.sort((a, b) => {
@@ -58,7 +58,7 @@ export function paginate<T>(
 export function generatePageNumbers(current: number, total: number, maxVisible: number = 5): number[] {
   const pages: number[] = [];
   let start = Math.max(1, current - Math.floor(maxVisible / 2));
-  let end = Math.min(total, start + maxVisible - 1);
+  const end = Math.min(total, start + maxVisible - 1);
   
   if (end - start < maxVisible - 1) {
     start = Math.max(1, end - maxVisible + 1);
