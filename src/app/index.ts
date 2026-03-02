@@ -4386,6 +4386,10 @@ export async function initApp() {
   };
 
   window.showAddDepSuppModal = function(extIdOverride?: string) {
+    // Remove any existing modal first to avoid duplicate IDs
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) existingModal.remove();
+    
     // Get params from stored bilan params or URL
     const bilanParams = (window as any)._bilanParams || {};
     const extBilanParams = (window as any)._extBilanParams || {};
@@ -4420,10 +4424,10 @@ export async function initApp() {
         </div>
         <div class="modal-body">
           <p class="mb-4 text-sm text-gray-600">Ces dépenses sont hors culte (loyer, matériel, aide sociale, etc.) et s'imputent sur le reste cumulé.</p>
-          <input type="hidden" id="dep-supp-ext-id" value="${extId}" />
+          <input type="hidden" id="dep-supp-ext-id" data-modal-field value="${extId}" />
           <div class="form-group mb-4">
             <label class="form-label">Date</label>
-            <input type="date" id="dep-supp-date" class="form-input" value="${yr}-01-01" />
+            <input type="date" id="dep-supp-date" data-modal-field class="form-input" value="${yr}-01-01" />
           </div>
           <div class="form-group mb-4">
             <label class="form-label">Motif</label>
@@ -4454,12 +4458,15 @@ export async function initApp() {
   };
 
   window.saveDepSupp = function() {
-    const extId = (document.getElementById('dep-supp-ext-id') as HTMLInputElement).value;
-    const date = (document.getElementById('dep-supp-date') as HTMLInputElement).value;
-    const motif = (document.getElementById('dep-supp-motif') as HTMLInputElement).value.trim();
-    let montant = parseFloat((document.getElementById('dep-supp-montant') as HTMLInputElement).value) || 0;
-    const deviseRecue = (document.getElementById('dep-supp-devise-recue') as HTMLSelectElement).value;
-    const tauxChange = parseFloat((document.getElementById('dep-supp-taux-change') as HTMLInputElement).value) || 1;
+    const modal = document.querySelector('.modal-overlay');
+    if (!modal) return;
+    
+    const extId = (modal.querySelector('#dep-supp-ext-id') as HTMLInputElement).value;
+    const date = (modal.querySelector('#dep-supp-date') as HTMLInputElement).value;
+    const motif = (modal.querySelector('#dep-supp-motif') as HTMLInputElement).value.trim();
+    let montant = parseFloat((modal.querySelector('#dep-supp-montant') as HTMLInputElement).value) || 0;
+    const deviseRecue = (modal.querySelector('#dep-supp-devise-recue') as HTMLSelectElement).value;
+    const tauxChange = parseFloat((modal.querySelector('#dep-supp-taux-change') as HTMLInputElement).value) || 1;
 
     if (!motif || montant <= 0) {
       alert('Veuillez remplir tous les champs correctement.');
