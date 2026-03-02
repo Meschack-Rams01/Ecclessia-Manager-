@@ -3,6 +3,7 @@ import { getSupabaseClient } from "../infrastructure/supabase/client";
 
 export type RapportDepense = { motif: string; montant: number };
 export type RapportConverti = { nom: string; tel?: string };
+export type DepenseSupp = { id: string; extensionId: string; date: string; motif: string; montant: number };
 export type Rapport = {
   id: string;
   extensionId: string;
@@ -225,6 +226,33 @@ export const Store = {
   },
   clearSes(): void {
     localStorage.removeItem(K.SES);
+  },
+
+  // Dépenses supplémentaires (hors culte)
+  getDepSupp(extId: string | null = null): DepenseSupp[] {
+    try {
+      const a: DepenseSupp[] = JSON.parse(localStorage.getItem(K.DEP_SUPP) || "null") || [];
+      return extId ? a.filter((d) => d.extensionId === extId) : a;
+    } catch {
+      return [];
+    }
+  },
+  getDepSuppById(id: string): DepenseSupp | null {
+    return this.getDepSupp().find((d) => d.id === id) || null;
+  },
+  saveDepSupp(d: DepenseSupp): DepenseSupp {
+    const a = this.getDepSupp();
+    const i = a.findIndex((x) => x.id === d.id);
+    if (i >= 0) a[i] = d;
+    else a.push(d);
+    localStorage.setItem(K.DEP_SUPP, JSON.stringify(a));
+    return d;
+  },
+  delDepSupp(id: string): void {
+    localStorage.setItem(
+      K.DEP_SUPP,
+      JSON.stringify(this.getDepSupp().filter((d) => d.id !== id)),
+    );
   },
 
   // Logo

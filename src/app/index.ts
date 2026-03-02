@@ -1,4 +1,4 @@
-import { Store, Auth, seedIfNeeded, type Rapport } from "./state";
+import { Store, Auth, seedIfNeeded, type Rapport, type DepenseSupp } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
 import { fmt, fmtD, fmtTRY, fmtCur, uid, mName } from "./utils";
 import { icon } from "./icons";
@@ -889,17 +889,25 @@ function doExportHTML(rapId: string) {
       width: 210mm;
       min-height: 297mm;
       margin: 0 auto;
-      padding: 20mm;
+      padding: 15mm;
+      padding-top: 12mm;
       background: #fff;
     }
 
     /* ── Page Setup ───────────────────────────────────── */
     @page { 
       size: A4; 
-      margin: 20mm; 
+      margin: 15mm;
+      margin-top: 12mm;
     }
     @page :first {
-      margin-top: 20mm;
+      margin-top: 15mm;
+    }
+    @page :left {
+      margin-left: 18mm;
+    }
+    @page :right {
+      margin-right: 18mm;
     }
     @media print {
       body { 
@@ -907,7 +915,7 @@ function doExportHTML(rapId: string) {
         print-color-adjust: exact; 
         width:100%!important; 
         margin:0!important; 
-        padding:20mm!important; 
+        padding:12mm 15mm!important; 
       }
       .no-print { display: none !important; }
     }
@@ -916,73 +924,84 @@ function doExportHTML(rapId: string) {
     .header-bar {
       display: flex;
       align-items: center;
-      gap: 20px;
-      padding-bottom: 16px;
-      margin-bottom: 24px;
+      gap: 16px;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
       border-bottom: 2px solid #1e3a8a;
     }
     .header-bar--center { justify-content: center; }
-    .header-logo { height: 48px; width: auto; object-fit: contain; }
+    .header-logo { height: 40px; width: auto; object-fit: contain; }
     .header-church { 
-      font-size: 14pt; 
+      font-size: 12pt; 
       font-weight: 700; 
       text-transform: uppercase; 
-      letter-spacing: 0.8px; 
+      letter-spacing: 0.5px; 
       color: #1e3a8a;
     }
     .header-title { 
-      font-size: 11pt; 
+      font-size: 10pt; 
       font-weight: 600; 
       color: #374151; 
       text-transform: uppercase; 
-      letter-spacing: 1.5px; 
-      margin-top: 2px;
+      letter-spacing: 1px; 
+      margin-top: 1px;
     }
     .header-date { 
-      font-size: 10pt; 
+      font-size: 9pt; 
       color: #6b7280; 
-      margin-top: 4px;
+      margin-top: 2px;
     }
 
     /* Hide header on subsequent pages */
     @media print {
       .header-bar { display: none; }
-      body { padding-top: 0 !important; }
+      body { padding-top: 12mm !important; }
     }
 
     /* ── Sections ─────────────────────────────────────── */
     .section {
-      margin-bottom: 18px;
+      margin-bottom: 14px;
       page-break-inside: avoid;
       break-inside: avoid;
-      orphans: 3;
-      widows: 3;
+      orphans: 4;
+      widows: 4;
     }
     .section-title {
-      font-size: 10pt;
+      font-size: 9.5pt;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.6px;
       color: #1e3a8a;
-      padding-bottom: 6px;
-      margin-bottom: 10px;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
       border-bottom: 1.5px solid #1e3a8a;
       break-after: avoid;
       page-break-after: avoid;
+      keep-with-next: always;
     }
 
     /* ── Info grid ────────────────────────────────────── */
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px 32px;
+      gap: 6px 24px;
       background: #f9fafb;
-      padding: 12px 16px;
+      padding: 10px 14px;
       border-radius: 4px;
       border: 1px solid #e5e7eb;
     }
-    .info-grid .label { font-weight: 600; color: #374151; }
-    .info-grid .value { color: #4b5563; }
+    .info-grid .label { 
+      font-weight: 600; 
+      color: #374151; 
+    }
+    .info-grid .value { 
+      color: #4b5563; 
+      text-align: justify;
+      text-justify: distribute;
+      hyphens: auto;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
 
     /* ── Tables ───────────────────────────────────────── */
     table { 
@@ -995,6 +1014,8 @@ function doExportHTML(rapId: string) {
     th, td { 
       padding: 6px 10px; 
       border: 1px solid #d1d5db; 
+      vertical-align: middle;
+      text-align: left;
     }
     thead th { 
       background: #f3f4f6; 
@@ -1003,7 +1024,8 @@ function doExportHTML(rapId: string) {
       white-space: nowrap;
       text-transform: uppercase;
       font-size: 8pt;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
+      vertical-align: middle;
     }
     tbody tr:nth-child(even) { background: #fafbfc; }
     tbody tr { page-break-inside: avoid; break-inside: avoid; }
@@ -1035,106 +1057,142 @@ function doExportHTML(rapId: string) {
       background: #fef3c7;
       border-top: 2px solid #d97706;
     }
+    table.depenses-table td:nth-child(3) {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
     
     /* ── Nouveaux Table ───────────────────────────────── */
     table.nouveaux-table th {
       background: #dcfce7;
       color: #166534;
     }
-    table.nouveaux-table tbody tr:hover {
-      background: #f0fdf4;
+    table.nouveaux-table td {
+      white-space: nowrap;
     }
 
     /* ── Effectif table ───────────────────────────────── */
     .eff-table { 
       width: auto; 
-      min-width: 75%; 
+      min-width: 70%; 
       margin: 0 auto;
     }
-    .eff-table td { 
+    .eff-table td, .eff-table th { 
       text-align: center; 
-      padding: 10px 20px; 
+      padding: 8px 16px; 
+      vertical-align: middle;
     }
     .eff-table .eff-val { 
-      font-size: 14pt; 
+      font-size: 13pt; 
       font-weight: 700; 
       color: #1e3a8a; 
     }
     .eff-table .eff-lbl { 
-      font-size: 8pt; 
+      font-size: 7.5pt; 
       color: #6b7280; 
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
     }
 
     /* ── Reste final ──────────────────────────────────── */
     .reste-final {
       display: inline-block;
-      margin-top: 8px;
-      padding: 10px 24px;
+      margin-top: 6px;
+      padding: 8px 20px;
       background: #eff6ff;
       border: 2px solid #1e3a8a;
       border-radius: 4px;
       font-weight: 700;
-      font-size: 12pt;
+      font-size: 11pt;
       color: #1e3a8a;
     }
 
     /* ── Signatures ───────────────────────────────────── */
     .sig-block {
-      margin-top: 40px;
-      padding-top: 16px;
+      margin-top: 30px;
+      padding-top: 12px;
       border-top: 2px solid #1e3a8a;
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      gap: 32px;
+      gap: 24px;
       page-break-inside: avoid;
       break-inside: avoid;
     }
     .sig-item { text-align: center; }
     .sig-line { 
       border-bottom: 1px solid #9ca3af; 
-      height: 40px; 
-      margin-bottom: 8px; 
+      height: 32px; 
+      margin-bottom: 6px; 
     }
     .sig-role { 
       font-weight: 700; 
-      font-size: 9pt; 
+      font-size: 8.5pt; 
       color: #374151; 
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
     }
     .sig-name { 
       font-size: 8pt; 
       color: #6b7280; 
-      margin-top: 4px; 
+      margin-top: 3px; 
+    }
+
+    /* ── Footer ──────────────────────────────────────── */
+    .footer-bar {
+      display: none;
+    }
+    @media print {
+      .footer-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 8px;
+        margin-top: 16px;
+        border-top: 1px solid #d1d5db;
+        font-size: 8pt;
+        color: #6b7280;
+        counter-reset: page;
+      }
+      .footer-left { text-align: left; }
+      .footer-center { text-align: center; }
+      .footer-right { text-align: right; }
+      .page-number::before {
+        counter-increment: page;
+        content: "Page " counter(page);
+      }
+      /* Ensure page breaks work well */
+      .section, .sig-block {
+        page-break-inside: avoid;
+      }
     }
 
     /* ── Print button bar ─────────────────────────────── */
-    .print-bar { text-align: center; margin-top: 30px; }
+    .print-bar { text-align: center; margin-top: 20px; }
     .print-bar button {
-      background: #1e3a8a; color: #fff; border: none; padding: 12px 32px;
-      font-size: 11pt; font-weight: 600; border-radius: 6px; cursor: pointer;
+      background: #1e3a8a; color: #fff; border: none; padding: 10px 24px;
+      font-size: 10pt; font-weight: 600; border-radius: 6px; cursor: pointer;
     }
     .print-bar button:hover { background: #1e2d6d; }
-    .print-bar p { font-size: 9pt; color: #6b7280; margin-top: 6px; }
+    .print-bar p { font-size: 8pt; color: #6b7280; margin-top: 5px; }
 
     /* ── Logo upload bar ──────────────────────────────── */
     .logo-bar {
       background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
-      padding: 14px 18px; margin-bottom: 20px;
-      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+      padding: 12px 16px; margin-bottom: 16px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
     }
     .logo-bar label { font-weight: 600; font-size: 9pt; color: #1e3a8a; }
     .logo-bar input[type=file], .logo-bar input[type=text] { font-size: 9pt; }
-    .logo-bar input[type=text] { flex:1; min-width:180px; padding:5px 8px; border:1px solid #93c5fd; border-radius:4px; }
-    .logo-bar button { padding:5px 12px; font-size:9pt; font-weight:600; border:none; border-radius:4px; cursor:pointer; }
+    .logo-bar input[type=text] { flex:1; min-width:150px; padding:4px 8px; border:1px solid #93c5fd; border-radius:4px; }
+    .logo-bar button { padding:4px 10px; font-size:9pt; font-weight:600; border:none; border-radius:4px; cursor:pointer; }
     .logo-bar .btn-apply { background:#1e3a8a; color:#fff; }
     .logo-bar .btn-save  { background:#16a34a; color:#fff; }
     .logo-bar .btn-rm    { background:transparent; color:#dc2626; font-size:9pt; }
     #logo-preview { display:none; align-items:center; gap:8px; }
     #logo-preview.visible { display:flex; }
-    #preview-img { height:36px; width:auto; object-fit:contain; border:1px solid #93c5fd; border-radius:4px; }
+    #preview-img { height:32px; width:auto; object-fit:contain; border:1px solid #93c5fd; border-radius:4px; }
   </style>
 </head>
 <body>
@@ -1232,6 +1290,13 @@ function doExportHTML(rapId: string) {
       <div class="sig-role">Pasteur</div>
       <div class="sig-name">${r.signatures?.pasteur || ""}</div>
     </div>
+  </div>
+
+  <!-- PIED DE PAGE -->
+  <div class="footer-bar">
+    <div class="footer-left">${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+    <div class="footer-center">Rapport de Culte - ${ext?.nom || "Emerge in Christ"}</div>
+    <div class="footer-right page-number"></div>
   </div>
 
   <!-- BOUTON IMPRESSION -->
@@ -1491,6 +1556,21 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
     });
   }
 
+  // Get depenses supplementaires for the period
+  let depSupp = Store.getDepSupp(extId).filter(d => {
+    const dDate = new Date(d.date + "T00:00");
+    if (dDate.getFullYear() !== year) return false;
+    if (period === "monthly" && month !== undefined) {
+      return dDate.getMonth() === month;
+    } else if (period === "quarterly" && quarter !== undefined) {
+      const qStart = quarter * 3;
+      const qEnd = qStart + 2;
+      const m = dDate.getMonth();
+      return m >= qStart && m <= qEnd;
+    }
+    return true;
+  });
+
   const data = {
     ordinaires: 0,
     orateur: 0,
@@ -1501,10 +1581,13 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
     socialTotal: 0,
     resteTotal: 0,
     totalDepenses: 0,
+    totalDepSupp: 0,
+    resteApresDepSupp: 0,
     soldeFinal: 0,
     cultes: raps.length,
     presence: 0,
     nouveaux: 0,
+    depSupp: depSupp,
   };
 
   raps.forEach(r => {
@@ -1521,6 +1604,11 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
     data.presence += r.effectif?.total || 0;
     data.nouveaux += r.nouveaux?.length || 0;
   });
+
+  // Calculate depenses supplementaires totals
+  data.totalDepSupp = depSupp.reduce((sum, d) => sum + d.montant, 0);
+  data.resteApresDepSupp = data.resteTotal - data.totalDepSupp;
+  data.soldeFinal = data.resteApresDepSupp - data.totalDepenses;
 
   return data;
 }
@@ -1670,6 +1758,10 @@ function pgAdminBilansFinancier() {
           <div class="calc-row"><span>- Prélèvement Dîme (10%)</span><span class="text-red-600">${fmtTRY(data.dimeTotal)}</span></div>
           <div class="calc-row"><span>- Prélèvement Social (${socialPct}%)</span><span class="text-red-600">${fmtTRY(data.socialTotal)}</span></div>
           <div class="calc-row total-row"><span>= Montant Disponible</span><span>${fmtTRY(data.resteTotal)}</span></div>
+          ${data.totalDepSupp > 0 ? `
+          <div class="calc-row"><span>- Dépenses Supplémentaires</span><span class="text-red-600">${fmtTRY(data.totalDepSupp)}</span></div>
+          <div class="calc-row total-row"><span>= Reste Après Dép. Supp.</span><span>${fmtTRY(data.resteApresDepSupp)}</span></div>
+          ` : ''}
           <div class="calc-row"><span>- Total Dépenses</span><span class="text-red-600">${fmtTRY(data.totalDepenses)}</span></div>
           <div class="calc-row total-row"><span>= Solde Final</span><span class="${data.soldeFinal >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtTRY(data.soldeFinal)}</span></div>
         </div>
@@ -1685,6 +1777,46 @@ function pgAdminBilansFinancier() {
         </div>
       </div>
     </div>
+
+    ${extIdToUse ? `
+    <div class="card mb-12">
+      <div class="flex justify-between items-center mb-12">
+        <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
+        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal()">+ Ajouter</button>
+      </div>
+      ${data.depSupp && data.depSupp.length > 0 ? `
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Date</th>
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Motif</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Montant</th>
+            <th class="border border-gray-300 px-4 py-3 text-center font-bold w-16">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.depSupp.map(d => `
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">${fmtD(d.date)}</td>
+            <td class="border border-gray-300 px-4 py-3">${d.motif}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(d.montant)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-center">
+              <button class="btn btn-red btn-sm" onclick="deleteDepSupp('${d.id}')">Suppr</button>
+            </td>
+          </tr>
+          `).join('')}
+          <tr class="bg-gray-200 font-bold">
+            <td class="border border-gray-300 px-4 py-3" colspan="2">Total</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.totalDepSupp)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      ` : `
+      <p class="text-gray-500 text-center py-8">Aucune dépense supplémentaire enregistrée pour cette période.</p>
+      `}
+    </div>
+    ` : ''}
   `);
 
   // Store current bilan params for export
@@ -1737,6 +1869,13 @@ function doExportBilanHTML() {
   // Period type labels
   const periodTypeLabel = period === "monthly" ? "MENSUEL" : period === "quarterly" ? "TRIMESTRIEL" : "ANNUEL";
   const churchName = ext?.nom || cfg.nom || "Emerge in Christ";
+
+  // Add CSS for dep-supp-table
+  const depSuppCSS = `
+    table.dep-supp-table th { background: #fee2e2; color: #991b1b; }
+    table.dep-supp-table td { vertical-align: middle; }
+    table.dep-supp-table .row-total td { background: #fecaca; border-top: 2px solid #dc2626; }
+  `;
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -2036,6 +2175,9 @@ function doExportBilanHTML() {
     }
     .print-bar button:hover { background: #1e2d6d; }
     .print-bar p { font-size: 9pt; color: #6b7280; margin-top: 6px; }
+    table.dep-supp-table th { background: #fee2e2; color: #991b1b; }
+    table.dep-supp-table td { vertical-align: middle; }
+    table.dep-supp-table .row-total td { background: #fecaca; border-top: 2px solid #dc2626; }
   </style>
 </head>
 <body>
@@ -2139,13 +2281,42 @@ function doExportBilanHTML() {
     </table>
   </div>
 
+  <!-- DÉPENSES SUPPLÉMENTAIRES (HORS CULTES) -->
+  ${data.depSupp && data.depSupp.length > 0 ? `
+  <div class="section">
+    <div class="section-title">Dépenses Supplémentaires (Hors Cultes)</div>
+    <table class="dep-supp-table">
+      <thead>
+        <tr>
+          <th class="txt-left">Date</th>
+          <th class="txt-left">Motif</th>
+          <th class="txt-right">Montant (${sym})</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.depSupp.map(d => `
+          <tr>
+            <td>${fmtD(d.date)}</td>
+            <td>${d.motif}</td>
+            <td class="txt-right">${fc(d.montant)}</td>
+          </tr>
+        `).join('')}
+        <tr class="row-total">
+          <td colspan="2">Total Dépenses Supplémentaires</td>
+          <td class="txt-right">${fc(data.totalDepSupp)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  ` : ''}
+
   <!-- RÉSUMÉ FINANCIER -->
   <div class="section">
     <div class="section-title">Résumé Financier</div>
     <table class="resume-table">
       <tbody>
         <tr>
-          <td class="label">Total Recettes</td>
+          <td class="label">Total Recettes (Cultes)</td>
           <td class="amount">${fc(data.totalRecettes)}</td>
         </tr>
         <tr>
@@ -2157,11 +2328,21 @@ function doExportBilanHTML() {
           <td class="amount amount-negative">− ${fc(data.socialTotal)}</td>
         </tr>
         <tr class="subtotal">
-          <td class="label">= Montant Disponible</td>
+          <td class="label">= Reste Culte (Avant Dép. Supp.)</td>
           <td class="amount">${fc(data.resteTotal)}</td>
         </tr>
+        ${data.totalDepSupp > 0 ? `
         <tr>
-          <td class="label">− Total Dépenses</td>
+          <td class="label">− Dépenses Supplémentaires</td>
+          <td class="amount amount-negative">− ${fc(data.totalDepSupp)}</td>
+        </tr>
+        <tr class="subtotal">
+          <td class="label">= Reste Après Dép. Supp.</td>
+          <td class="amount">${fc(data.resteApresDepSupp)}</td>
+        </tr>
+        ` : ''}
+        <tr>
+          <td class="label">− Total Dépenses (Cultes)</td>
           <td class="amount amount-negative">− ${fc(data.totalDepenses)}</td>
         </tr>
         <tr class="final">
@@ -3498,6 +3679,9 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
     }
     .print-bar button:hover { background: #1e2d6d; }
     .print-bar p { font-size: 9pt; color: #6b7280; margin-top: 6px; }
+    table.dep-supp-table th { background: #fee2e2; color: #991b1b; }
+    table.dep-supp-table td { vertical-align: middle; }
+    table.dep-supp-table .row-total td { background: #fecaca; border-top: 2px solid #dc2626; }
   </style>
 </head>
 <body>
@@ -3973,6 +4157,81 @@ export async function initApp() {
   window.exportData = exportData;
   window.importData = importData;
   window.resetData = resetData;
+
+  // Depenses supplementaires functions
+  window.deleteDepSupp = function(id: string) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) {
+      Store.delDepSupp(id);
+      const params = curParams();
+      navTo('/admin/bilans/financier', params);
+    }
+  };
+
+  window.showAddDepSuppModal = function() {
+    const params = curParams();
+    const yr = params.year ? parseInt(params.year) : new Date().getFullYear();
+    const extId = params.ext || '';
+    const ext = Store.getExt(extId);
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:400px">
+        <div class="modal-header">
+          <h3>Ajouter une Dépense Supplémentaire</h3>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-4 text-sm text-gray-600">Ces dépenses sont hors culte (loyer, matériel, aide sociale, etc.) et s'imputent sur le reste cumulé.</p>
+          <input type="hidden" id="dep-supp-ext-id" value="${extId}" />
+          <div class="form-group mb-4">
+            <label class="form-label">Date</label>
+            <input type="date" id="dep-supp-date" class="form-input" value="${yr}-01-01" />
+          </div>
+          <div class="form-group mb-4">
+            <label class="form-label">Motif</label>
+            <input type="text" id="dep-supp-motif" class="form-input" placeholder="Ex: Loyer mensuel, Matériel bureautique..." />
+          </div>
+          <div class="form-group mb-4">
+            <label class="form-label">Montant (${ext?.symbole || '€'})</label>
+            <input type="number" id="dep-supp-montant" class="form-input" placeholder="0.00" step="0.01" min="0" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+          <button class="btn btn-primary" onclick="saveDepSupp()">Enregistrer</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  };
+
+  window.saveDepSupp = function() {
+    const extId = (document.getElementById('dep-supp-ext-id') as HTMLInputElement).value;
+    const date = (document.getElementById('dep-supp-date') as HTMLInputElement).value;
+    const motif = (document.getElementById('dep-supp-motif') as HTMLInputElement).value.trim();
+    const montant = parseFloat((document.getElementById('dep-supp-montant') as HTMLInputElement).value) || 0;
+
+    if (!motif || montant <= 0) {
+      alert('Veuillez remplir tous les champs correctement.');
+      return;
+    }
+
+    const newDepSupp: DepenseSupp = {
+      id: 'ds_' + Date.now(),
+      extensionId: extId,
+      date: date,
+      motif: motif,
+      montant: montant
+    };
+
+    Store.saveDepSupp(newDepSupp);
+    
+    // Close modal and refresh
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+    const params = curParams();
+    navTo('/admin/bilans/financier', params);
+  };
 
   const ses = Auth.ses();
   if (ses) {

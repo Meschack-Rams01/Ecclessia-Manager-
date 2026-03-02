@@ -76,6 +76,17 @@ CREATE TABLE IF NOT EXISTS settings (
   data JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Dépenses supplémentaires table (hors culte)
+CREATE TABLE IF NOT EXISTS depenses_supplementaires (
+  id TEXT PRIMARY KEY,
+  extension_id TEXT NOT NULL,
+  date DATE NOT NULL,
+  motif TEXT NOT NULL,
+  montant DECIMAL(12,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
 ### Create Indexes (for performance)
@@ -92,6 +103,16 @@ ON rapports(date DESC);
 -- Index for admin dashboard queries
 CREATE INDEX IF NOT EXISTS idx_rapports_extension_date 
 ON rapports(extension_id, date DESC);
+
+-- Index for depenses supplementaires
+CREATE INDEX IF NOT EXISTS idx_dep_sup_extension 
+ON depenses_supplementaires(extension_id);
+
+CREATE INDEX IF NOT EXISTS idx_dep_sup_date 
+ON depenses_supplementaires(date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dep_sup_extension_date 
+ON depenses_supplementaires(extension_id, date DESC);
 ```
 
 ---
@@ -107,6 +128,7 @@ Go to **SQL Editor** and run:
 ALTER TABLE extensions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE rapports DISABLE ROW LEVEL SECURITY;
 ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE depenses_supplementaires DISABLE ROW LEVEL SECURITY;
 ```
 
 **That's it!** The app should work now.
@@ -122,11 +144,13 @@ If you want full security later, use these policies:
 ALTER TABLE extensions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rapports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE depenses_supplementaires ENABLE ROW LEVEL SECURITY;
 
 -- Allow all operations without auth (for development)
 CREATE POLICY "allow_all_extensions" ON extensions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_rapports" ON rapports FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_settings" ON settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_dep_sup" ON depenses_supplementaires FOR ALL USING (true) WITH CHECK (true);
 ```
 
 ---

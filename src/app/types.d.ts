@@ -14,3 +14,9 @@ declare module "docx" {
   export const AlignmentType: any;
   export const BorderStyle: any;
 }
+
+interface Window {
+  deleteDepSupp: (id: string) => void;
+  showAddDepSuppModal: () => void;
+  saveDepSupp: () => void;
+}
