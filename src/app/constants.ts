@@ -41,11 +41,9 @@ export type Extension = {
   coordinateur: string;
   secretaire: string;
   tresorier: string;
-  // Password removed - authentication now handled via Supabase Auth
-  // Extension is linked to user account via user_metadata.extension_id
-  password?: string; // Deprecated: kept for backward compatibility
   devise: string;
   symbole: string;
+  password?: string; // For local authentication
 };
 
 export const DEF_EXTS: Extension[] = [
@@ -65,10 +63,9 @@ export const DEF_EXTS: Extension[] = [
     coordinateur: "Frère David Mutombo",
     secretaire: "Sœur Rachel Lukusa",
     tresorier: "Frère Jean-Paul Ngoy",
-    // Default password for backward compatibility
-    password: "nicosie123",
     devise: "EUR",
     symbole: "€",
+    password: "nicosie123",
   },
   {
     id: "ext_lim",
@@ -86,10 +83,9 @@ export const DEF_EXTS: Extension[] = [
     coordinateur: "Frère Samuel Banza",
     secretaire: "Sœur Esther Mwamba",
     tresorier: "Frère Isaac Tshimanga",
-    // Default password for backward compatibility
-    password: "limassol123",
     devise: "EUR",
     symbole: "€",
+    password: "limassol123",
   },
   {
     id: "ext_lar",
@@ -107,10 +103,9 @@ export const DEF_EXTS: Extension[] = [
     coordinateur: "Frère Caleb Mbombo",
     secretaire: "Sœur Miriam Kavula",
     tresorier: "Frère Thomas Luzolo",
-    // Default password for backward compatibility
-    password: "larnaca123",
     devise: "EUR",
     symbole: "€",
+    password: "larnaca123",
   },
 ];
 
@@ -128,7 +123,8 @@ export const ADMIN_NAV: NavGroup[] = [
       { icon: "fileText", lbl: "Tous les Rapports", path: "/admin/rapports" },
       { icon: "chartBar", lbl: "Bilans Comparatifs", path: "/admin/bilans" },
       { icon: "wallet", lbl: "Bilans Financiers", path: "/admin/bilans/financier" },
-      { icon: "users", lbl: "Nouveaux Convertis", path: "/admin/convertis" },
+      { icon: "coins", lbl: "Bilan des Dîmes", path: "/admin/bilans/dimes" },
+      { icon: "users", lbl: "Âmes Gagnées", path: "/admin/convertis" },
     ],
   },
   { g: "Administration", items: [{ icon: "settings", lbl: "Paramètres", path: "/admin/settings" }] },
@@ -142,10 +138,10 @@ export const EXT_NAV: NavGroup[] = [
       { icon: "plus", lbl: "Nouveau Rapport", path: "/ext/new" },
       { icon: "fileText", lbl: "Mes Rapports", path: "/ext/rapports" },
       { icon: "chartBar", lbl: "Bilans", path: "/ext/bilans" },
-      { icon: "users", lbl: "Convertis", path: "/ext/convertis" },
+      { icon: "users", lbl: "Âmes Gagnées", path: "/ext/convertis" },
     ],
   },
 ];
 
-export const STEPS = ["Culte", "Effectif", "Offrandes", "Dépenses", "Convertis", "Signature"] as const;
+export const STEPS = ["Culte", "Effectif", "Offrandes", "Dépenses", "Âmes Gagnées", "Signature"] as const;
 

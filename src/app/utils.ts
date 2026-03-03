@@ -21,18 +21,20 @@ export function fmt(v: unknown, sym = ""): string {
 }
 
 // Dynamic currency format - uses current extension's symbol by default
-export function fmtTRY(v: unknown): string {
+export function fmtTRY(v: unknown, symbole?: string): string {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "")) || 0;
-  return currentSymbol + " " + n.toLocaleString("fr-FR", {
+  const sym = symbole !== undefined ? symbole : currentSymbol;
+  return sym + " " + n.toLocaleString("fr-FR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
 // Explicit symbol format
-export function fmtCur(v: unknown, symbole = ""): string {
+export function fmtCur(v: unknown, symbole?: string): string {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "")) || 0;
-  return (symbole || currentSymbol) + " " + n.toLocaleString("fr-FR", {
+  const sym = symbole !== undefined ? symbole : currentSymbol;
+  return sym + " " + n.toLocaleString("fr-FR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

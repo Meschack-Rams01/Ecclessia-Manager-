@@ -1,5 +1,6 @@
 import { DEF_EXTS, K, type Extension } from "./constants";
 import { getSupabaseClient } from "../infrastructure/supabase/client";
+import { logger } from "../infrastructure/logger";
 
 export type RapportDepense = { motif: string; montant: number };
 export type RapportConverti = { nom: string; tel?: string };
@@ -46,7 +47,8 @@ export type Rapport = {
   depenses?: RapportDepense[];
   totalDepenses?: number;
   soldeFinal?: number;
-  nouveaux?: RapportConverti[];
+  nouveaux?: RapportConverti[];  // Âmes gagnées (convertis)
+  nouveauxVenus?: RapportConverti[];  // Nouveaux venus (première visite)
   signatures?: { secretaire: string; tresorier: string; pasteur: string };
   updatedAt?: string;
 };
@@ -166,10 +168,10 @@ export const Store = {
           .from("extensions")
           .upsert({ id: ext.id, data: ext }, { onConflict: "id" });
         if (error) {
-          console.error("Error syncing extension to Supabase:", error);
+          logger.error("syncExtToSupabase.failed", error, { extId: ext.id });
         }
       } catch (e) {
-        console.error("Exception syncing extension to Supabase:", e);
+        logger.error("syncExtToSupabase.exception", e, { extId: ext.id });
       }
     };
     doSync();
@@ -195,12 +197,26 @@ export const Store = {
     const doDelete = async () => {
       try {
         const client = getSupabaseClient();
-        const { error } = await client.from("extensions").delete().eq("id", extId);
-        if (error) {
-          console.error("Error deleting extension from Supabase:", error);
+        
+        // 1. Supprimer d'abord tous les rapports de l'extension
+        const { error: rapError } = await client
+          .from("rapports")
+          .delete()
+          .eq("extension_id", extId);
+        if (rapError) {
+          logger.error("deleteRapportsFromSupabase.failed", rapError, { extId });
+        }
+        
+        // 2. Puis supprimer l'extension
+        const { error: extError } = await client
+          .from("extensions")
+          .delete()
+          .eq("id", extId);
+        if (extError) {
+          logger.error("deleteExtFromSupabase.failed", extError, { extId });
         }
       } catch (e) {
-        console.error("Exception deleting extension from Supabase:", e);
+        logger.error("deleteExtFromSupabase.exception", e, { extId });
       }
     };
     doDelete();
@@ -227,11 +243,45 @@ export const Store = {
     localStorage.setItem(K.RAP, JSON.stringify(a));
     return r;
   },
-  delRap(id: string): void {
+  async delRap(id: string): Promise<void> {
+    // Supprimer d'abord du localStorage
     localStorage.setItem(
       K.RAP,
       JSON.stringify(this.getRaps().filter((r) => r.id !== id)),
     );
+    // Marquer comme supprimé pour éviter la réimportation par la subscription
+    this._markAsDeleted(id);
+    // Sync suppression vers Supabase
+    await this.deleteRapFromSupabase(id);
+  },
+  
+  // Set pour tracker les IDs supprimés localement
+  _deletedIds: new Set<string>(),
+  
+  _markAsDeleted(id: string): void {
+    this._deletedIds.add(id);
+    // Nettoyer après 5 secondes
+    setTimeout(() => this._deletedIds.delete(id), 5000);
+  },
+  
+  isDeleted(id: string): boolean {
+    return this._deletedIds.has(id);
+  },
+  
+  /**
+   * Delete rapport from Supabase
+   */
+  async deleteRapFromSupabase(rapId: string): Promise<void> {
+    try {
+      const { getSupabaseClient } = await import("../infrastructure/supabase/client");
+      const client = getSupabaseClient();
+      const { error } = await client.from("rapports").delete().eq("id", rapId);
+      if (error) {
+        logger.error("deleteRapFromSupabase.failed", error, { rapId });
+      }
+    } catch (e) {
+      logger.error("deleteRapFromSupabase.exception", e, { rapId });
+    }
   },
 
   // Session

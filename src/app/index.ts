@@ -138,6 +138,7 @@ function updateLogoUI() {
 
 function populateExtSel() {
   const sel = document.getElementById("ext-select") as HTMLSelectElement;
+  if (!sel) return;
   sel.innerHTML = Store.getExts()
     .map((e) => `<option value="${e.id}">${e.nom} — ${e.ville}</option>`)
     .join("");
@@ -270,7 +271,7 @@ function extCard(ext: Extension): string {
     <div class="ext-mini-stats mb-12">
       <div><div class="ext-stat-val">${s.cultes}</div><div class="ext-stat-lbl">Cultes</div></div>
       <div><div class="ext-stat-val">${s.presence}</div><div class="ext-stat-lbl">Présence moy.</div></div>
-      <div><div class="ext-stat-val">${s.nouveaux}</div><div class="ext-stat-lbl">Convertis</div></div>
+      <div><div class="ext-stat-val">${s.nouveaux}</div><div class="ext-stat-lbl">Âmes Gagnées</div></div>
     </div>
     <div class="flex justify-between items-center mt-8" style="gap:12px;flex-wrap:wrap;">
       <div class="text-xs text-muted">
@@ -394,7 +395,7 @@ function showRapModal(rapId: string) {
     <p class="text-gray-500 italic">Aucune dépense</p>
     <p class="font-bold mt-2">Reste final: ${fmtTRY(r.soldeFinal || 0)}</p>`;
 
-  const nouveauxTable = r.nouveaux?.length ? `
+  const amesGagneesTable = r.nouveaux?.length ? `
     <table class="w-full border-collapse text-sm">
       <thead>
         <tr class="bg-gray-100">
@@ -404,6 +405,24 @@ function showRapModal(rapId: string) {
       </thead>
       <tbody>
         ${r.nouveaux!.map(n => `
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">${n.nom}</td>
+            <td class="border border-gray-300 px-3 py-2">${n.tel || "—"}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>` : "";
+    
+  const nouveauxVenusTable = r.nouveauxVenus?.length ? `
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="border border-gray-300 px-3 py-2 text-left font-bold">Noms</th>
+          <th class="border border-gray-300 px-3 py-2 text-left font-bold">Téléphone</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${r.nouveauxVenus!.map(n => `
           <tr>
             <td class="border border-gray-300 px-3 py-2">${n.nom}</td>
             <td class="border border-gray-300 px-3 py-2">${n.tel || "—"}</td>
@@ -471,10 +490,17 @@ function showRapModal(rapId: string) {
       </div>
 
       <!-- ACCUEIL DES NOUVEAUX -->
-      ${nouveauxTable ? `
+      ${amesGagneesTable ? `
       <div class="mb-6">
-        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200">Accueil des Nouveaux</h3>
-        ${nouveauxTable}
+        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200" style="color:#059669">ÂMES GAGNÉES (${r.nouveaux?.length || 0})</h3>
+        ${amesGagneesTable}
+      </div>
+      ` : ""}
+      
+      ${nouveauxVenusTable ? `
+      <div class="mb-6">
+        <h3 class="text-lg font-bold uppercase mb-3 pb-2 border-b border-gray-200" style="color:#2563EB">NOUVEAUX VENUS (${r.nouveauxVenus?.length || 0})</h3>
+        ${nouveauxVenusTable}
       </div>
       ` : ""}
 
@@ -581,7 +607,7 @@ function doExportPDF(rapId: string) {
   doc.setFont("times", "bold");
   const colWidths = [60, 35, 35, 35, 35];
   const socialPct = Store.getSet().socialPct || 10;
-  const cols = ["Type de recette", "Montant (₺)", "Dîme 10 %", `Social (${socialPct}%)`, "Reste"];
+  const cols = ["Type de recette", `Montant (${ext?.symbole || "€"})`, "Dîme 10 %", `Social (${socialPct}%)`, "Reste"];
   let x = marginLeft;
   cols.forEach((col, i) => {
     doc.rect(x, y - 4, colWidths[i], 8); // Cell border
@@ -601,6 +627,7 @@ function doExportPDF(rapId: string) {
     ["Actions de Grâce", r.offrandes?.actionsGrace || 0, v?.actionsGrace.dime || 0, v?.actionsGrace.social || 0, v?.actionsGrace.reste || 0],
   ];
   
+  const extSym = ext?.symbole || "€";
   rows.forEach(row => {
     x = marginLeft;
     row.forEach((cell, i) => {
@@ -608,7 +635,7 @@ function doExportPDF(rapId: string) {
       if (i === 0) {
         doc.text(String(cell), x + 2, y + 1);
       } else {
-        doc.text(fmtTRY(cell), x + colWidths[i] - 2, y + 1, { align: "right" });
+        doc.text(fmtTRY(cell, extSym), x + colWidths[i] - 2, y + 1, { align: "right" });
       }
       x += colWidths[i];
     });
@@ -625,7 +652,7 @@ function doExportPDF(rapId: string) {
   const totals = [r.offrandes?.total || 0, v?.totalDime || 0, v?.totalSocial || 0, v?.reste || 0];
   totals.forEach((cell, i) => {
     doc.rect(x, y - 4, colWidths[i + 1], 8);
-    doc.text(fmtTRY(cell), x + colWidths[i + 1] - 2, y + 1, { align: "right" });
+    doc.text(fmtTRY(cell, extSym), x + colWidths[i + 1] - 2, y + 1, { align: "right" });
     x += colWidths[i + 1];
   });
   y += 15;
@@ -641,7 +668,7 @@ function doExportPDF(rapId: string) {
   
   // Expenses table header
   doc.setFontSize(10);
-  const depCols = ["N°", "Montant (₺)", "Motif"];
+  const depCols = ["N°", `Montant (${ext?.symbole || "€"})`, "Motif"];
   const depWidths = [15, 40, 120];
   x = marginLeft;
   depCols.forEach((col, i) => {
@@ -660,7 +687,7 @@ function doExportPDF(rapId: string) {
       x += depWidths[0];
       
       doc.rect(x, y - 4, depWidths[1], 8);
-      doc.text(fmtTRY(d.montant), x + depWidths[1] - 2, y + 1, { align: "right" });
+      doc.text(fmtTRY(d.montant, extSym), x + depWidths[1] - 2, y + 1, { align: "right" });
       x += depWidths[1];
       
       doc.rect(x, y - 4, depWidths[2], 8);
@@ -675,7 +702,7 @@ function doExportPDF(rapId: string) {
     doc.text("Total", x + 2, y + 1);
     x += depWidths[0];
     doc.rect(x, y - 4, depWidths[1], 8);
-    doc.text(fmtTRY(r.totalDepenses || 0), x + depWidths[1] - 2, y + 1, { align: "right" });
+    doc.text(fmtTRY(r.totalDepenses || 0, extSym), x + depWidths[1] - 2, y + 1, { align: "right" });
     x += depWidths[1];
     doc.rect(x, y - 4, depWidths[2], 8);
     y += 10;
@@ -685,7 +712,7 @@ function doExportPDF(rapId: string) {
     doc.text("Reste final", x + 2, y + 1);
     x += depWidths[0];
     doc.rect(x, y - 4, depWidths[1], 8);
-    doc.text(fmtTRY(r.soldeFinal || 0), x + depWidths[1] - 2, y + 1, { align: "right" });
+    doc.text(fmtTRY(r.soldeFinal || 0, extSym), x + depWidths[1] - 2, y + 1, { align: "right" });
   } else {
     x = marginLeft;
     doc.rect(x, y - 4, 175, 8);
@@ -697,31 +724,77 @@ function doExportPDF(rapId: string) {
     doc.text("Reste final", x + 2, y + 1);
     x += depWidths[0];
     doc.rect(x, y - 4, depWidths[1], 8);
-    doc.text(fmtTRY(r.soldeFinal || 0), x + depWidths[1] - 2, y + 1, { align: "right" });
+    doc.text(fmtTRY(r.soldeFinal || 0, extSym), x + depWidths[1] - 2, y + 1, { align: "right" });
   }
   y += 15;
 
-  // SECTION: ACCUEIL DES NOUVEAUX - TABLE FORMAT
-  if (r.nouveaux?.length) {
+  // SECTION: ACCUEIL DES ÂMES GAGNÉES - TABLE FORMAT
+  if (r.nouveaux?.length || r.nouveauxVenus?.length) {
     doc.setFontSize(12);
     doc.setFont("times", "bold");
     doc.text("ACCUEIL DES NOUVEAUX", marginLeft, y);
-    y += 10;
+    y += 12;
+  }
+  
+  // Âmes Gagnées
+  if (r.nouveaux?.length) {
+    doc.setFontSize(11);
+    doc.setFont("times", "bold");
+    doc.setTextColor(5, 150, 105); // Vert pour âmes gagnées
+    doc.text(`ÂMES GAGNÉES (${r.nouveaux.length})`, marginLeft, y);
+    doc.setTextColor(0, 0, 0); // Retour au noir
+    y += 8;
     
-    // New converts table header
+    // Table header
     doc.setFontSize(10);
-    const newCols = ["Noms", "Téléphone"];
     const newWidths = [100, 75];
     x = marginLeft;
-    newCols.forEach((col, i) => {
-      doc.rect(x, y - 4, newWidths[i], 8);
-      doc.text(col, x + 2, y + 1);
-      x += newWidths[i];
-    });
+    doc.setFillColor(220, 252, 231); // Vert clair
+    doc.rect(x, y - 4, newWidths[0], 8, 'F');
+    doc.rect(x + newWidths[0], y - 4, newWidths[1], 8, 'F');
+    doc.rect(x, y - 4, newWidths[0], 8);
+    doc.rect(x + newWidths[0], y - 4, newWidths[1], 8);
+    doc.text("Noms", x + 2, y + 1);
+    doc.text("Téléphone", x + newWidths[0] + 2, y + 1);
     y += 8;
     
     doc.setFont("times", "normal");
     r.nouveaux.forEach((n) => {
+      x = marginLeft;
+      doc.rect(x, y - 4, newWidths[0], 10);
+      doc.text(n.nom, x + 2, y + 2);
+      x += newWidths[0];
+      doc.rect(x, y - 4, newWidths[1], 10);
+      doc.text(n.tel || "—", x + 2, y + 2);
+      y += 10;
+    });
+    y += 8;
+  }
+  
+  // Nouveaux Venus
+  if (r.nouveauxVenus?.length) {
+    doc.setFontSize(11);
+    doc.setFont("times", "bold");
+    doc.setTextColor(37, 99, 235); // Bleu pour nouveaux venus
+    doc.text(`NOUVEAUX VENUS (${r.nouveauxVenus.length})`, marginLeft, y);
+    doc.setTextColor(0, 0, 0); // Retour au noir
+    y += 8;
+    
+    // Table header
+    doc.setFontSize(10);
+    const newWidths = [100, 75];
+    x = marginLeft;
+    doc.setFillColor(219, 234, 254); // Bleu clair
+    doc.rect(x, y - 4, newWidths[0], 8, 'F');
+    doc.rect(x + newWidths[0], y - 4, newWidths[1], 8, 'F');
+    doc.rect(x, y - 4, newWidths[0], 8);
+    doc.rect(x + newWidths[0], y - 4, newWidths[1], 8);
+    doc.text("Noms", x + 2, y + 1);
+    doc.text("Téléphone", x + newWidths[0] + 2, y + 1);
+    y += 8;
+    
+    doc.setFont("times", "normal");
+    r.nouveauxVenus.forEach((n) => {
       x = marginLeft;
       doc.rect(x, y - 4, newWidths[0], 10);
       doc.text(n.nom, x + 2, y + 2);
@@ -836,7 +909,7 @@ function doExportHTML(rapId: string) {
     </table>` : `
     <p style="color:#6b7280;font-style:italic">Aucune dépense enregistrée.</p>`;
 
-  const nouveauxTable = r.nouveaux?.length ? `
+  const amesGagneesTable = r.nouveaux?.length ? `
     <table class="nouveaux-table">
       <thead>
         <tr>
@@ -846,6 +919,24 @@ function doExportHTML(rapId: string) {
       </thead>
       <tbody>
         ${r.nouveaux!.map(n => `
+          <tr>
+            <td>${n.nom}</td>
+            <td>${n.tel || "—"}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>` : "";
+    
+  const nouveauxVenusTable = r.nouveauxVenus?.length ? `
+    <table class="nouveaux-table" style="--header-bg:#dbeafe;--header-color:#1e40af">
+      <thead>
+        <tr>
+          <th class="txt-left">Noms</th>
+          <th class="txt-left">Téléphone</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${r.nouveauxVenus!.map(n => `
           <tr>
             <td>${n.nom}</td>
             <td>${n.tel || "—"}</td>
@@ -1272,10 +1363,17 @@ function doExportHTML(rapId: string) {
   </div>
 
   <!-- 6. ACCUEIL DES NOUVEAUX -->
-  ${nouveauxTable ? `
+  ${amesGagneesTable ? `
   <div class="section">
-    <div class="section-title">Accueil des Nouveaux</div>
-    ${nouveauxTable}
+    <div class="section-title" style="color:#059669">ÂMES GAGNÉES (${r.nouveaux?.length || 0})</div>
+    ${amesGagneesTable}
+  </div>
+  ` : ""}
+  
+  ${nouveauxVenusTable ? `
+  <div class="section">
+    <div class="section-title" style="color:#2563EB">NOUVEAUX VENUS (${r.nouveauxVenus?.length || 0})</div>
+    ${nouveauxVenusTable}
   </div>
   ` : ""}
 
@@ -1779,7 +1877,7 @@ function pgAdminBilansFinancier() {
           <div class="calc-row"><span>Nombre de cultes</span><span>${data.cultes}</span></div>
           <div class="calc-row"><span>Présence totale</span><span>${data.presence}</span></div>
           <div class="calc-row"><span>Présence moyenne</span><span>${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</span></div>
-          <div class="calc-row"><span>Nouveaux convertis</span><span>${data.nouveaux}</span></div>
+          <div class="calc-row"><span>Âmes gagnées</span><span>${data.nouveaux}</span></div>
           <div class="calc-row"><span>Moyenne offrandes/culte</span><span>${fmtTRY(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</span></div>
         </div>
       </div>
@@ -1789,7 +1887,7 @@ function pgAdminBilansFinancier() {
     <div class="card mb-12">
       <div class="flex justify-between items-center mb-12">
         <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
-        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extIdToUse || ''}')">+ Ajouter</button>
+        <button class="btn btn-primary btn-sm" onclick="window.showAddDepSuppModal('${extIdToUse || ''}')">+ Ajouter</button>
       </div>
       ${data.depSupp && data.depSupp.length > 0 ? `
       <table class="w-full">
@@ -2368,7 +2466,7 @@ function doExportBilanHTML() {
       <div class="stat-item"><strong>Nombre de cultes :</strong> ${data.cultes}</div>
       <div class="stat-item"><strong>Présence totale :</strong> ${data.presence}</div>
       <div class="stat-item"><strong>Présence moyenne :</strong> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
-      <div class="stat-item"><strong>Nouveaux convertis :</strong> ${data.nouveaux}</div>
+      <div class="stat-item"><strong>Âmes gagnées :</strong> ${data.nouveaux}</div>
       <div class="stat-item"><strong>Moyenne offrandes/culte :</strong> ${fc(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
     </div>
   </div>
@@ -2411,6 +2509,7 @@ function registerAdminRoutes() {
   regRoute("/admin/rapports", pgAdminRaps);
   regRoute("/admin/bilans", pgAdminBilans);
   regRoute("/admin/bilans/financier", pgAdminBilansFinancier);
+  regRoute("/admin/bilans/dimes", pgAdminDimesBilan);
   regRoute("/print/summary", doExportBilanHTML);
   regRoute("/admin/convertis", pgAdminConvertis);
   regRoute("/admin/settings", pgAdminSettings);
@@ -2557,15 +2656,174 @@ function pgAdminBilans() {
   chartLine("chCmp", mo.map((m) => m.lbl), datasets);
 }
 
+/**
+ * Bilan des Dîmes - Admin view
+ * Shows all dîmes collected across all extensions with filtering and export
+ */
+function pgAdminDimesBilan() {
+  setActive("/admin/bilans/dimes");
+  setTopbar("Bilan des Dîmes", "Recettes et ventilation", "Admin");
+  
+  const exts = Store.getExts();
+  const params = curParams();
+  const yr = params.year ? parseInt(params.year) : new Date().getFullYear();
+  const extId = params.ext || "";
+  
+  // Get all rapports for the selected year and extension
+  let raps = Store.getRaps().filter(r => {
+    const rYear = new Date(r.date).getFullYear();
+    return rYear === yr && (!extId || r.extensionId === extId);
+  });
+  
+  // Sort by date
+  raps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  // Calculate totals
+  let totalDimes = 0;
+  let totalDime10 = 0;
+  let totalSocial = 0;
+  let totalReste = 0;
+  
+  const dimesData = raps.map(r => {
+    const ext = Store.getExt(r.extensionId);
+    const dimes = calcTotalOffres(r.offrandes?.dimes);
+    const dime10 = r.ventilation?.dimes?.dime || 0;
+    const social = r.ventilation?.dimes?.social || 0;
+    const reste = r.ventilation?.dimes?.reste || 0;
+    
+    totalDimes += dimes;
+    totalDime10 += dime10;
+    totalSocial += social;
+    totalReste += reste;
+    
+    return {
+      id: r.id,
+      date: r.date,
+      extId: r.extensionId,
+      extNom: ext?.nom || "—",
+      extSymbole: ext?.symbole || "€",
+      dimes,
+      dime10,
+      social,
+      reste
+    };
+  });
+  
+  // Calculate totals from all offrandes (not just dimes)
+  let totalOffrandesDime = 0;
+  raps.forEach(r => {
+    totalOffrandesDime += r.ventilation?.totalDime || 0;
+  });
+  
+  render(`
+    <div class="page-header">
+      <div><h1>Bilan des Dîmes</h1><p>${yr} · ${extId ? exts.find(e => e.id === extId)?.nom || "—" : "Toutes extensions"}</p></div>
+      <div class="flex gap-8">
+        <button class="btn btn-blue" onclick="exportDimesBilan()">${icon("download")} Exporter CSV</button>
+      </div>
+    </div>
+    
+    <div class="filter-bar mb-20">
+      <select onchange="navTo('/admin/bilans/dimes', {year:this.value,ext:'${extId}'})">
+        ${[2026,2025,2024,2023,2022].map(y => `<option value="${y}"${yr === y ? " selected" : ""}>${y}</option>`).join("")}
+      </select>
+      <select onchange="navTo('/admin/bilans/dimes', {year:'${yr}',ext:this.value})">
+        <option value="">Toutes les extensions</option>
+        ${exts.map(e => `<option value="${e.id}"${extId === e.id ? " selected" : ""}>${e.nom}</option>`).join("")}
+      </select>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div class="grid-4 mb-20">
+      <div class="card" style="border-left:3px solid #8B5CF6">
+        <div class="text-sm text-gray-500 mb-4">Total Dîmes Collectées</div>
+        <div class="text-2xl font-bold">${fmt(totalDimes, "€")}</div>
+      </div>
+      <div class="card" style="border-left:3px solid #DC2626">
+        <div class="text-sm text-gray-500 mb-4">Total Dîme (10%)</div>
+        <div class="text-2xl font-bold">${fmt(totalDime10, "€")}</div>
+      </div>
+      <div class="card" style="border-left:3px solid #059669">
+        <div class="text-sm text-gray-500 mb-4">Total Social</div>
+        <div class="text-2xl font-bold">${fmt(totalSocial, "€")}</div>
+      </div>
+      <div class="card" style="border-left:3px solid #2563EB">
+        <div class="text-sm text-gray-500 mb-4">Total Reste</div>
+        <div class="text-2xl font-bold">${fmt(totalReste, "€")}</div>
+      </div>
+    </div>
+    
+    <!-- Grand Total from all offrandes -->
+    <div class="card mb-20" style="background:linear-gradient(135deg, #8B5CF622 0%, #7C3AED22 100%); border:1px solid #8B5CF644">
+      <div class="flex justify-between items-center">
+        <div>
+          <div class="text-sm text-gray-600 mb-2">TOTAL DÎME DE TOUTES LES OFFRANDES (10%)</div>
+          <div class="text-3xl font-bold" style="color:#7C3AED">${fmt(totalOffrandesDime, "€")}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm text-gray-500">Rapports inclus</div>
+          <div class="text-xl font-bold">${raps.length}</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Detailed Table -->
+    <div class="card">
+      <div class="form-section-title mb-12">Détail des Dîmes par Culte</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Extension</th>
+              <th class="text-right">Dîmes</th>
+              <th class="text-right">Dîme (10%)</th>
+              <th class="text-right">Social</th>
+              <th class="text-right">Reste</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dimesData.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text3)">Aucune dîme enregistrée pour cette période</td></tr>` : ""}
+            ${dimesData.map(d => `
+              <tr>
+                <td class="td-bold">${fmtD(d.date)}</td>
+                <td><span class="badge" style="background:#8B5CF622;color:#8B5CF6;border:1px solid #8B5CF644">${d.extNom}</span></td>
+                <td class="text-right">${fmt(d.dimes, d.extSymbole)}</td>
+                <td class="text-right" style="color:#DC2626;font-weight:500">${fmt(d.dime10, d.extSymbole)}</td>
+                <td class="text-right" style="color:#059669">${fmt(d.social, d.extSymbole)}</td>
+                <td class="text-right">${fmt(d.reste, d.extSymbole)}</td>
+                <td class="text-center">
+                  <button class="btn btn-secondary btn-sm" onclick="showRapModal('${d.id}')">${icon("eye")}</button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+          <tfoot style="background:#f8f9fa;font-weight:bold">
+            <tr>
+              <td colspan="2">TOTAL</td>
+              <td class="text-right">${fmt(totalDimes, "€")}</td>
+              <td class="text-right" style="color:#DC2626">${fmt(totalDime10, "€")}</td>
+              <td class="text-right" style="color:#059669">${fmt(totalSocial, "€")}</td>
+              <td class="text-right">${fmt(totalReste, "€")}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  `);
+}
+
 function pgAdminConvertis() {
   setActive("/admin/convertis");
-  setTopbar("Nouveaux Convertis", "Suivi pastoral", "Admin");
+  setTopbar("Âmes Gagnées", "Suivi pastoral", "Admin");
   const exts = Store.getExts();
   const convertis = Store.allNouveaux();
 
   render(`
     <div class="page-header">
-      <div><h1>Nouveaux Convertis</h1><p>${convertis.length} converti(s) enregistré(s)</p></div>
+      <div><h1>Âmes Gagnées</h1><p>${convertis.length} âme(s) gagnée(s)</p></div>
     </div>
     <div class="filter-bar mb-20">
       <select id="conv-ext-filter" onchange="this.dataset.v=this.value;pgAdminConvertis()">
@@ -2577,7 +2835,7 @@ function pgAdminConvertis() {
       <table>
         <thead><tr><th>Date</th><th>Extension</th><th>Nom</th><th>Téléphone</th><th>Actions</th></tr></thead>
         <tbody>
-          ${convertis.length === 0 ? `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text3)">Aucun converti enregistré</td></tr>` : ""}
+          ${convertis.length === 0 ? `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text3)">Aucune âme gagnée enregistrée</td></tr>` : ""}
           ${convertis
             .map((c) => {
               const ext = Store.getExt(c.extId);
@@ -2974,10 +3232,25 @@ function renderStepContent(r: Rapport, sym: string): string {
     case 4:
       return `
         <div class="form-section-title">ACCUEIL DES NOUVEAUX</div>
-        <div id="conv-list">
-          ${(r.nouveaux || []).map((n, i) => `<div class="conv-row"><input type="text" placeholder="Nom" value="${n.nom}" id="conv-nom-${i}"><input type="text" placeholder="Téléphone" value="${n.tel || ""}" id="conv-tel-${i}"><button class="btn btn-danger btn-icon" onclick="removeConvRow(${i})">${icon("x")}</button></div>`).join("")}
+        
+        <!-- Section Âmes Gagnées -->
+        <div class="mb-20">
+          <div class="form-section-subtitle mb-12" style="color:#059669;font-weight:600">ÂMES GAGNÉES (Convertis)</div>
+          <div id="conv-list">
+            ${(r.nouveaux || []).map((n, i) => `<div class="conv-row"><input type="text" placeholder="Nom" value="${n.nom}" id="conv-nom-${i}"><input type="text" placeholder="Téléphone" value="${n.tel || ""}" id="conv-tel-${i}"><button class="btn btn-danger btn-icon" onclick="removeConvRow(${i})">${icon("x")}</button></div>`).join("")}
+          </div>
+          <button class="btn btn-secondary btn-sm mt-8" onclick="addConvRow()">${icon("plus")} Ajouter une âme gagnée</button>
         </div>
-        <button class="btn btn-secondary btn-sm mt-8" onclick="addConvRow()">${icon("plus")} Ajouter un converti</button>
+        
+        <!-- Section Nouveaux Venus -->
+        <div class="mb-20">
+          <div class="form-section-subtitle mb-12" style="color:#2563EB;font-weight:600">NOUVEAUX VENUS (Première visite)</div>
+          <div id="nv-list">
+            ${(r.nouveauxVenus || []).map((n, i) => `<div class="nv-row"><input type="text" placeholder="Nom" value="${n.nom}" id="nv-nom-${i}"><input type="text" placeholder="Téléphone" value="${n.tel || ""}" id="nv-tel-${i}"><button class="btn btn-danger btn-icon" onclick="removeNvRow(${i})">${icon("x")}</button></div>`).join("")}
+          </div>
+          <button class="btn btn-secondary btn-sm mt-8" onclick="addNvRow()">${icon("plus")} Ajouter un nouveau venu</button>
+        </div>
+        
         <div class="flex justify-between mt-16">
           <button class="btn btn-secondary" onclick="goToStep(3)">← Précédent</button>
           <button class="btn btn-primary" onclick="saveStep4()">Suivant →</button>
@@ -3247,8 +3520,25 @@ window.removeConvRow = function (idx: number) {
   if (ses?.role === "extension") pgExtNew(ses.extId);
 };
 
+window.addNvRow = function () {
+  if (!rapFormData) return;
+  rapFormData.nouveauxVenus = rapFormData.nouveauxVenus || [];
+  rapFormData.nouveauxVenus.push({ nom: "", tel: "" });
+  const ses = Auth.ses();
+  if (ses?.role === "extension") pgExtNew(ses.extId);
+};
+
+window.removeNvRow = function (idx: number) {
+  if (!rapFormData?.nouveauxVenus) return;
+  rapFormData.nouveauxVenus.splice(idx, 1);
+  const ses = Auth.ses();
+  if (ses?.role === "extension") pgExtNew(ses.extId);
+};
+
 function saveStep4() {
   if (!rapFormData) return;
+  
+  // Save Âmes Gagnées
   const convRows = document.querySelectorAll(".conv-row");
   const convs: { nom: string; tel?: string }[] = [];
   convRows.forEach((_, i) => {
@@ -3257,6 +3547,17 @@ function saveStep4() {
     if (nom) convs.push({ nom, tel: tel || undefined });
   });
   rapFormData.nouveaux = convs;
+  
+  // Save Nouveaux Venus
+  const nvRows = document.querySelectorAll(".nv-row");
+  const nvs: { nom: string; tel?: string }[] = [];
+  nvRows.forEach((_, i) => {
+    const nom = (document.getElementById(`nv-nom-${i}`) as HTMLInputElement)?.value || "";
+    const tel = (document.getElementById(`nv-tel-${i}`) as HTMLInputElement)?.value || "";
+    if (nom) nvs.push({ nom, tel: tel || undefined });
+  });
+  rapFormData.nouveauxVenus = nvs;
+  
   rapStep = 5;
   const ses = Auth.ses();
   if (ses?.role === "extension") pgExtNew(ses.extId);
@@ -3359,11 +3660,22 @@ window.extRapFilter = function (sel: HTMLSelectElement, field: string) {
   navTo("/ext/rapports", p);
 };
 
-window.doDeleteRap = function (id: string) {
+window.doDeleteRap = async function (id: string) {
   if (!confirm("Supprimer ce rapport ?")) return;
-  Store.delRap(id);
-  toast("Rapport supprimé", "success");
-  pgExtRaps();
+  try {
+    await Store.delRap(id);
+    toast("Rapport supprimé", "success");
+    // Recharger la page après suppression complète
+    const ses = Auth.ses();
+    if (ses?.role === 'extension') {
+      pgExtRaps();
+    } else {
+      pgAdminRaps(curParams());
+    }
+  } catch (e) {
+    console.error("doDeleteRap failed", e);
+    toast("Erreur lors de la suppression", "error");
+  }
 };
 
 function pgExtBilans(extId: string) {
@@ -3469,7 +3781,7 @@ function pgExtBilans(extId: string) {
     <div class="card mb-12">
       <div class="flex justify-between items-center mb-12">
         <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
-        <button class="btn btn-primary btn-sm" onclick="showAddDepSuppModal('${extId || ''}')">+ Ajouter</button>
+        <button class="btn btn-primary btn-sm" onclick="window.showAddDepSuppModal('${extId || ''}')">+ Ajouter</button>
       </div>
       ${currentYearData.depSupp && currentYearData.depSupp.length > 0 ? `
       <table class="w-full">
@@ -4005,7 +4317,7 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
       <div class="stat-item"><strong>Nombre de cultes :</strong> ${data.cultes}</div>
       <div class="stat-item"><strong>Présence totale :</strong> ${data.presence}</div>
       <div class="stat-item"><strong>Présence moyenne :</strong> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
-      <div class="stat-item"><strong>Nouveaux convertis :</strong> ${data.nouveaux}</div>
+      <div class="stat-item"><strong>Âmes gagnées :</strong> ${data.nouveaux}</div>
       <div class="stat-item"><strong>Moyenne offrandes/culte :</strong> ${fc(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
     </div>
   </div>
@@ -4049,6 +4361,7 @@ function exportBilanToCSV(extId: string | null, period: "monthly" | "quarterly" 
   const exts = Store.getExts();
   const ext = extId ? exts.find(e => e.id === extId) : null;
   const socialPct = Store.getSet().socialPct || 10;
+  const sym = ext?.symbole || "€";
   
   let periodLabel = `${yr}`;
   if (period === "monthly" && month !== undefined) {
@@ -4058,20 +4371,129 @@ function exportBilanToCSV(extId: string | null, period: "monthly" | "quarterly" 
     periodLabel = `${qLabels[quarter]} ${yr}`;
   }
   
-  // Build CSV content - use simple string concatenation to avoid template literal issues
-  const socialHeader = "Social (" + socialPct + "%)";
-  const headerRow = "Type,Montant (₺),Dime 10%," + socialHeader + ",Reste";
-  const row1 = "Offrandes ordinaires," + data.ordinaires.toFixed(2) + "," + (data.ordinaires * 0.1).toFixed(2) + "," + (data.ordinaires * socialPct / 100).toFixed(2) + "," + (data.ordinaires * (1 - 0.1 - socialPct / 100)).toFixed(2);
-  const row2 = "Offrandes pour Orateur," + data.orateur.toFixed(2) + ",0.00,0.00," + data.orateur.toFixed(2);
-  const row3 = "Dimes," + data.dimes.toFixed(2) + "," + (data.dimes * 0.1).toFixed(2) + "," + (data.dimes * socialPct / 100).toFixed(2) + "," + (data.dimes * (1 - 0.1 - socialPct / 100)).toFixed(2);
-  const row4 = "Actions de Grace," + data.actionsGrace.toFixed(2) + "," + (data.actionsGrace * 0.1).toFixed(2) + "," + (data.actionsGrace * socialPct / 100).toFixed(2) + "," + (data.actionsGrace * (1 - 0.1 - socialPct / 100)).toFixed(2);
-  const rowTotal = "TOTAL," + data.totalRecettes.toFixed(2) + "," + data.dimeTotal.toFixed(2) + "," + data.socialTotal.toFixed(2) + "," + data.resteTotal.toFixed(2);
+  // Get detailed rapport data for expenses
+  let raps = Store.getRaps(extId).filter(r => {
+    const d = new Date(r.date + "T00:00");
+    if (d.getFullYear() !== yr) return false;
+    if (period === "monthly" && month !== undefined) {
+      return d.getMonth() === month;
+    } else if (period === "quarterly" && quarter !== undefined) {
+      const qStart = quarter * 3;
+      const qEnd = qStart + 2;
+      const m = d.getMonth();
+      return m >= qStart && m <= qEnd;
+    }
+    return true;
+  });
+  raps.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   
-  const summary = "\n\nRESUME FINANCIER\nTotal Recettes," + data.totalRecettes.toFixed(2) + "\n- Prelvement Dime (10%)," + data.dimeTotal.toFixed(2) + "\n- Prelvement Social (" + socialPct + "%)," + data.socialTotal.toFixed(2) + "\n= Montant Disponible," + data.resteTotal.toFixed(2) + "\n- Total Depenses," + data.totalDepenses.toFixed(2) + "\n= Solde Final," + data.soldeFinal.toFixed(2);
+  // Build comprehensive CSV content
+  let csv = "BILAN FINANCIER - " + (ext?.nom || "Emerge in Christ") + "\n";
+  csv += "Periode," + periodLabel + "\n";
+  csv += "Devise," + sym + "\n\n";
   
-  const stats = "\n\nSTATISTIQUES\nNombre de cultes," + data.cultes + "\nPresence totale," + data.presence + "\nPresence moyenne," + (data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0) + "\nNouveaux convertis," + data.nouveaux;
+  // Section 1: OFFRANDES ET VENTILATION
+  csv += "=== OFFRANDES ET VENTILATION ===\n";
+  csv += "Type,Montant,Dime 10%,Social (" + socialPct + "%),Reste\n";
+  csv += "Offrandes ordinaires," + data.ordinaires.toFixed(2) + "," + (data.ordinaires * 0.1).toFixed(2) + "," + (data.ordinaires * socialPct / 100).toFixed(2) + "," + (data.ordinaires * (1 - 0.1 - socialPct / 100)).toFixed(2) + "\n";
+  csv += "Offrandes pour Orateur," + data.orateur.toFixed(2) + ",0.00,0.00," + data.orateur.toFixed(2) + "\n";
+  csv += "Dimes," + data.dimes.toFixed(2) + "," + (data.dimes * 0.1).toFixed(2) + "," + (data.dimes * socialPct / 100).toFixed(2) + "," + (data.dimes * (1 - 0.1 - socialPct / 100)).toFixed(2) + "\n";
+  csv += "Actions de Grace," + data.actionsGrace.toFixed(2) + "," + (data.actionsGrace * 0.1).toFixed(2) + "," + (data.actionsGrace * socialPct / 100).toFixed(2) + "," + (data.actionsGrace * (1 - 0.1 - socialPct / 100)).toFixed(2) + "\n";
+  csv += "TOTAL," + data.totalRecettes.toFixed(2) + "," + data.dimeTotal.toFixed(2) + "," + data.socialTotal.toFixed(2) + "," + data.resteTotal.toFixed(2) + "\n\n";
   
-  const csv = headerRow + "\n" + row1 + "\n" + row2 + "\n" + row3 + "\n" + row4 + "\n" + rowTotal + summary + stats;
+  // Section 2: DEPENSES SUPPLEMENTAIRES (HORS CULTES)
+  csv += "=== DEPENSES SUPPLEMENTAIRES (HORS CULTES) ===\n";
+  csv += "Date,Motif,Montant\n";
+  if (data.depSupp && data.depSupp.length > 0) {
+    data.depSupp.forEach(d => {
+      csv += d.date + ",'" + d.motif.replace(/'/g, "'") + "'," + d.montant.toFixed(2) + "\n";
+    });
+    csv += "TOTAL DEPENSES SUPPLEMENTAIRES,," + data.totalDepSupp.toFixed(2) + "\n";
+  } else {
+    csv += "Aucune depense supplementaire,,0.00\n";
+  }
+  csv += "\n";
+  
+  // Section 3: DETAIL DES CULTES ET DEPENSES
+  csv += "=== DETAIL DES CULTES ET DEPENSES ===\n";
+  raps.forEach((r, idx) => {
+    const rExt = Store.getExt(r.extensionId);
+    csv += "\nCULTE #" + (idx + 1) + "\n";
+    csv += "Date," + r.date + "\n";
+    csv += "Extension," + (rExt?.nom || "—") + "\n";
+    csv += "Theme," + (r.theme || "—") + "\n";
+    csv += "Predicateur," + (r.predicateur || "—") + "\n";
+    csv += "Presence," + (r.effectif?.total || 0) + "\n";
+    csv += "Offrandes Total," + (r.offrandes?.total || 0).toFixed(2) + "\n";
+    
+    // Depenses for this culte
+    if (r.depenses && r.depenses.length > 0) {
+      csv += "Depenses du culte:\n";
+      csv += "Motif,Montant\n";
+      r.depenses.forEach(d => {
+        csv += "'" + d.motif.replace(/'/g, "'") + "'," + d.montant.toFixed(2) + "\n";
+      });
+      csv += "Total depenses culte,," + (r.totalDepenses || 0).toFixed(2) + "\n";
+    } else {
+      csv += "Depenses du culte,Aucune,0.00\n";
+    }
+    csv += "Solde final culte,," + (r.soldeFinal || 0).toFixed(2) + "\n";
+  });
+  
+  csv += "\n\n=== RESUME FINANCIER GLOBAL ===\n";
+  csv += "Total Recettes," + data.totalRecettes.toFixed(2) + "\n";
+  csv += "- Prelevement Dime (10%)," + data.dimeTotal.toFixed(2) + "\n";
+  csv += "- Prelevement Social (" + socialPct + "%)," + data.socialTotal.toFixed(2) + "\n";
+  csv += "= Montant Disponible," + data.resteTotal.toFixed(2) + "\n";
+  csv += "- Depenses Supplementaires," + data.totalDepSupp.toFixed(2) + "\n";
+  csv += "= Reste apres depenses supp," + data.resteApresDepSupp.toFixed(2) + "\n";
+  csv += "- Total Depenses Cultes," + data.totalDepenses.toFixed(2) + "\n";
+  csv += "= SOLDE FINAL," + data.soldeFinal.toFixed(2) + "\n\n";
+  
+  // Calculate totals for nouveaux
+  let totalAmesGagnees = 0;
+  let totalNouveauxVenus = 0;
+  raps.forEach(r => {
+    totalAmesGagnees += r.nouveaux?.length || 0;
+    totalNouveauxVenus += r.nouveauxVenus?.length || 0;
+  });
+  
+  csv += "=== STATISTIQUES ===\n";
+  csv += "Nombre de cultes," + data.cultes + "\n";
+  csv += "Presence totale," + data.presence + "\n";
+  csv += "Presence moyenne," + (data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0) + "\n";
+  csv += "Âmes gagnées," + totalAmesGagnees + "\n";
+  csv += "Nouveaux venus," + totalNouveauxVenus + "\n\n";
+  
+  // Section 4: DETAIL DES AMES GAGNEES ET NOUVEAUX VENUS
+  csv += "=== DETAIL DES AMES GAGNEES ET NOUVEAUX VENUS ===\n";
+  raps.forEach((r, idx) => {
+    const rExt = Store.getExt(r.extensionId);
+    csv += "\nCULTE #" + (idx + 1) + " - " + r.date + "\n";
+    csv += "Extension," + (rExt?.nom || "—") + "\n";
+    
+    // Ames gagnees
+    if (r.nouveaux && r.nouveaux.length > 0) {
+      csv += "Âmes gagnées:\n";
+      csv += "Nom,Téléphone\n";
+      r.nouveaux.forEach(n => {
+        csv += "'" + (n.nom || "").replace(/'/g, "'") + "','" + (n.tel || "—") + "'\n";
+      });
+    } else {
+      csv += "Âmes gagnées,Aucune\n";
+    }
+    
+    // Nouveaux venus
+    if (r.nouveauxVenus && r.nouveauxVenus.length > 0) {
+      csv += "Nouveaux venus:\n";
+      csv += "Nom,Téléphone\n";
+      r.nouveauxVenus.forEach(n => {
+        csv += "'" + (n.nom || "").replace(/'/g, "'") + "','" + (n.tel || "—") + "'\n";
+      });
+    } else {
+      csv += "Nouveaux venus,Aucun\n";
+    }
+  });
   
   const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -4083,7 +4505,7 @@ function exportBilanToCSV(extId: string | null, period: "monthly" | "quarterly" 
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-  toast("Bilan exporté en CSV", "success");
+  toast("Bilan complet exporte en CSV", "success");
 }
 
 (window as any).exportBilanToCSV = exportBilanToCSV;
@@ -4093,17 +4515,17 @@ function pgExtConvertis(extId: string) {
   const ext = Store.getExt(extId);
   const convertis = Store.allNouveaux(extId);
 
-  setTopbar("Convertis", ext?.nom || "", "");
+  setTopbar("Âmes Gagnées", ext?.nom || "", "");
 
   render(`
     <div class="page-header">
-      <div><h1>Nouveaux Convertis</h1><p>${convertis.length} converti(s)</p></div>
+      <div><h1>Âmes Gagnées</h1><p>${convertis.length} âme(s) gagnée(s)</p></div>
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Date</th><th>Nom</th><th>Téléphone</th><th>Actions</th></tr></thead>
         <tbody>
-          ${convertis.length === 0 ? `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text3)">Aucun converti</td></tr>` : ""}
+          ${convertis.length === 0 ? `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text3)">Aucune âme gagnée</td></tr>` : ""}
           ${convertis
             .map(
               (c) => `<tr>
@@ -4190,11 +4612,7 @@ window.openExtForm = function (extId: string | null) {
         <div><label>Secrétaire</label><input id="ef-sec" value="${e?.secretaire || ""}"/></div>
         <div><label>Trésorier</label><input id="ef-tres" value="${e?.tresorier || ""}"/></div>
       </div>
-      <div class="form-section-title mb-12">Accès</div>
-      <div class="form-row cols-2">
-        <div><label>Mot de passe *</label><input id="ef-pw" value="${e?.password || ""}"/></div>
-        <div></div>
-      </div>
+      <!-- Password removed - authentication now handled via Supabase Auth -->
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
@@ -4218,11 +4636,6 @@ window.saveExtForm = function (extId: string) {
     toast("Le nom est obligatoire", "error");
     return;
   }
-  const pw = g("ef-pw");
-  if (!pw) {
-    toast("Mot de passe obligatoire", "error");
-    return;
-  }
   const ext: Extension = {
     id: extId || "ext_" + Date.now(),
     nom,
@@ -4237,7 +4650,6 @@ window.saveExtForm = function (extId: string) {
     coordinateur: g("ef-coord"),
     secretaire: g("ef-sec"),
     tresorier: g("ef-tres"),
-    password: pw,
   };
 
   Promise.resolve()
@@ -4285,6 +4697,7 @@ export async function initApp() {
   window.doLogin = function (type: string) {
     const err = document.getElementById("login-error")!;
     err.style.display = "none";
+    
     if (type === "admin") {
       const pw = (document.getElementById("admin-pw") as HTMLInputElement).value;
       if (Auth.loginAdmin(pw)) {
@@ -4331,7 +4744,28 @@ export async function initApp() {
   
   // Multi-currency offering functions
   window.addOffreRow = function(type: string) {
-    if (!rapFormData) return;
+    // Initialize rapFormData if not exists - needed for when button is clicked outside form context
+    if (!rapFormData) {
+      const ses = Auth.ses();
+      const extId = ses?.role === 'extension' ? ses.extId : '';
+      rapFormData = {
+        id: uid(),
+        extensionId: extId,
+        date: new Date().toISOString().split('T')[0],
+        theme: '',
+        heureDebut: '',
+        heureFin: '',
+        moderateur: '',
+        predicateur: '',
+        interprete: '',
+        textes: '',
+        effectif: { papas: 0, mamans: 0, freres: 0, soeurs: 0, enfants: 0, total: 0 },
+        offrandes: { ordinaires: [], orateur: [], dimes: [], actionsGrace: [], total: 0 },
+        depenses: [],
+        nouveaux: [],
+        signatures: { secretaire: '', tresorier: '', pasteur: '' },
+      };
+    }
     // Map short type to container ID
     const typeMap: Record<string, string> = {
       'ordinaires': 'ord',
@@ -4380,102 +4814,186 @@ export async function initApp() {
   window.deleteDepSupp = function(id: string) {
     if (confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) {
       Store.delDepSupp(id);
-      const params = curParams();
-      navTo('/admin/bilans/financier', params);
+      const ses = Auth.ses();
+      if (ses && ses.role === 'extension') {
+        pgExtBilans(ses.extId);
+      } else {
+        const params = curParams();
+        navTo('/admin/bilans/financier', params);
+      }
     }
   };
 
-  window.showAddDepSuppModal = function(extIdOverride?: string) {
-    // Remove any existing modal first to avoid duplicate IDs
-    const existingModal = document.querySelector('.modal-overlay');
-    if (existingModal) existingModal.remove();
-    
-    // Get params from stored bilan params or URL
+  /**
+   * Get extension ID for supplementary expenses
+   * Priority: 1. function parameter, 2. URL params, 3. stored params, 4. session
+   */
+  function getDepSuppExtId(extIdOverride?: string): string | null {
     const bilanParams = (window as any)._bilanParams || {};
     const extBilanParams = (window as any)._extBilanParams || {};
     const params = curParams();
     
-    // Priority: 1. function parameter, 2. URL params, 3. stored params
     let extId = extIdOverride || params.ext || bilanParams.extId || extBilanParams.extId || '';
     
-    // If still empty, try to get from session
     if (!extId) {
       const ses = Auth.ses();
-      if (ses && ses.role === 'extension') {
+      if (ses?.role === 'extension') {
         extId = ses.extId;
       }
     }
     
-    const yr = params.year ? parseInt(params.year) : bilanParams.yr || new Date().getFullYear();
-    const ext = Store.getExt(extId);
+    return extId || null;
+  }
+
+  /**
+   * Open modal for adding supplementary expense (dépense supplémentaire)
+   * Uses the standard modal system via openModal/closeModal
+   */
+  window.showAddDepSuppModal = function(extIdOverride?: string) {
+    const extId = getDepSuppExtId(extIdOverride);
     
     if (!extId) {
-      alert('Veuillez sélectionner une extension.');
+      toast('Veuillez sélectionner une extension.', 'error');
       return;
     }
     
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal" style="max-width:400px">
-        <div class="modal-header">
-          <h3>Ajouter une Dépense Supplémentaire</h3>
-          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+    const ext = Store.getExt(extId);
+    if (!ext) {
+      toast('Extension non trouvée.', 'error');
+      return;
+    }
+    
+    const params = curParams();
+    const bilanParams = (window as any)._bilanParams || {};
+    const yr = params.year ? parseInt(params.year) : bilanParams.yr || new Date().getFullYear();
+    
+    // Store current extension ID for save function
+    (window as any)._currentDepSuppExtId = extId;
+    
+    openModal(`
+      <div class="modal-header">
+        <h3>Ajouter une Dépense Supplémentaire</h3>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-4 text-sm text-gray-600">Ces dépenses sont hors culte (loyer, matériel, aide sociale, etc.) et s'imputent sur le reste cumulé.</p>
+        <div class="form-group mb-4">
+          <label class="form-label" for="ds-date">Date</label>
+          <input type="date" id="ds-date" class="form-input" value="${yr}-01-01" />
         </div>
-        <div class="modal-body">
-          <p class="mb-4 text-sm text-gray-600">Ces dépenses sont hors culte (loyer, matériel, aide sociale, etc.) et s'imputent sur le reste cumulé.</p>
-          <input type="hidden" id="dep-supp-ext-id" data-modal-field value="${extId}" />
-          <div class="form-group mb-4">
-            <label class="form-label">Date</label>
-            <input type="date" id="dep-supp-date" data-modal-field class="form-input" value="${yr}-01-01" />
-          </div>
-          <div class="form-group mb-4">
-            <label class="form-label">Motif</label>
-            <input type="text" id="dep-supp-motif" class="form-input" placeholder="Ex: Loyer mensuel, Matériel bureautique..." />
-          </div>
-          <div class="form-group mb-4">
-            <label class="form-label">Montant (${ext?.symbole || '€'})</label>
-            <input type="number" id="dep-supp-montant" class="form-input" placeholder="0.00" step="0.01" min="0" />
-          </div>
-          <div class="form-group mb-4">
-            <label class="form-label">Devise reçue</label>
-            <select id="dep-supp-devise-recue" class="form-input">
-              ${DEVISES.map(d => `<option value="${d.c}" data-s="${d.s}" ${(ext?.devise || 'EUR') === d.c ? 'selected' : ''}>${d.c} — ${d.s}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group mb-4">
-            <label class="form-label">Taux de change</label>
-            <input type="number" id="dep-supp-taux-change" class="form-input" placeholder="1" step="0.0001" min="0.0001" value="1" />
-          </div>
+        <div class="form-group mb-4">
+          <label class="form-label" for="ds-motif">Motif</label>
+          <input type="text" id="ds-motif" class="form-input" placeholder="Ex: Loyer mensuel, Matériel bureautique..." />
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
-          <button class="btn btn-primary" onclick="saveDepSupp()">Enregistrer</button>
+        <div class="form-group mb-4">
+          <label class="form-label" for="ds-montant">Montant (${ext?.symbole || '€'})</label>
+          <input type="number" id="ds-montant" class="form-input" placeholder="0.00" step="0.01" min="0" />
+        </div>
+        <div class="form-group mb-4">
+          <label class="form-label" for="ds-devise">Devise reçue</label>
+          <select id="ds-devise" class="form-input">
+            ${DEVISES.map(d => `<option value="${d.c}" ${(ext?.devise || 'EUR') === d.c ? 'selected' : ''}>${d.c} — ${d.s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group mb-4">
+          <label class="form-label" for="ds-taux">Taux de change</label>
+          <input type="number" id="ds-taux" class="form-input" placeholder="1" step="0.0001" min="0.0001" value="1" />
         </div>
       </div>
-    `;
-    document.body.appendChild(modal);
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveDepSupp()">Enregistrer</button>
+      </div>
+    `);
+  };
+
+  /**
+   * Save supplementary expense from modal
+   */
+  /**
+   * Export Dîmes Bilan to CSV
+   */
+  window.exportDimesBilan = function() {
+    const params = curParams();
+    const yr = params.year ? parseInt(params.year) : new Date().getFullYear();
+    const extId = params.ext || "";
+    
+    let raps = Store.getRaps().filter(r => {
+      const rYear = new Date(r.date).getFullYear();
+      return rYear === yr && (!extId || r.extensionId === extId);
+    });
+    
+    raps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    // CSV Header
+    let csv = "Date,Extension,Dîmes,Dîme (10%),Social,Reste\n";
+    
+    // CSV Data
+    raps.forEach(r => {
+      const ext = Store.getExt(r.extensionId);
+      const dimes = calcTotalOffres(r.offrandes?.dimes);
+      const dime10 = r.ventilation?.dimes?.dime || 0;
+      const social = r.ventilation?.dimes?.social || 0;
+      const reste = r.ventilation?.dimes?.reste || 0;
+      
+      csv += `"${r.date}","${ext?.nom || "—"}",${dimes},${dime10},${social},${reste}\n`;
+    });
+    
+    // Totals row
+    let totalDimes = 0, totalDime10 = 0, totalSocial = 0, totalReste = 0;
+    raps.forEach(r => {
+      totalDimes += calcTotalOffres(r.offrandes?.dimes);
+      totalDime10 += r.ventilation?.dimes?.dime || 0;
+      totalSocial += r.ventilation?.dimes?.social || 0;
+      totalReste += r.ventilation?.dimes?.reste || 0;
+    });
+    csv += `"TOTAL","",${totalDimes},${totalDime10},${totalSocial},${totalReste}\n`;
+    
+    // Download
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `bilan-dimes-${yr}${extId ? "-" + extId : ""}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast("Bilan des dîmes exporté", "success");
   };
 
   window.saveDepSupp = function() {
-    const modal = document.querySelector('.modal-overlay');
-    if (!modal) return;
+    const extId = (window as any)._currentDepSuppExtId;
     
-    const extId = (modal.querySelector('#dep-supp-ext-id') as HTMLInputElement).value;
-    const date = (modal.querySelector('#dep-supp-date') as HTMLInputElement).value;
-    const motif = (modal.querySelector('#dep-supp-motif') as HTMLInputElement).value.trim();
-    let montant = parseFloat((modal.querySelector('#dep-supp-montant') as HTMLInputElement).value) || 0;
-    const deviseRecue = (modal.querySelector('#dep-supp-devise-recue') as HTMLSelectElement).value;
-    const tauxChange = parseFloat((modal.querySelector('#dep-supp-taux-change') as HTMLInputElement).value) || 1;
+    if (!extId) {
+      toast('Erreur: extension non définie.', 'error');
+      return;
+    }
+    
+    const date = (document.getElementById('ds-date') as HTMLInputElement)?.value?.trim();
+    const motif = (document.getElementById('ds-motif') as HTMLInputElement)?.value?.trim();
+    let montant = parseFloat((document.getElementById('ds-montant') as HTMLInputElement)?.value) || 0;
+    const deviseRecue = (document.getElementById('ds-devise') as HTMLSelectElement)?.value;
+    const tauxChange = parseFloat((document.getElementById('ds-taux') as HTMLInputElement)?.value) || 1;
 
-    if (!motif || montant <= 0) {
-      alert('Veuillez remplir tous les champs correctement.');
+    // Validation
+    if (!date) {
+      toast('Veuillez sélectionner une date.', 'error');
+      return;
+    }
+    
+    if (!motif) {
+      toast('Veuillez saisir un motif.', 'error');
+      return;
+    }
+    
+    if (montant <= 0) {
+      toast('Veuillez saisir un montant valide.', 'error');
       return;
     }
 
     // Convert amount if different currency
     const ext = Store.getExt(extId);
-    if (ext && deviseRecue !== ext.devise && tauxChange) {
+    if (ext && deviseRecue && deviseRecue !== ext.devise && tauxChange > 0) {
       montant = +(montant * tauxChange).toFixed(2);
     }
 
@@ -4485,18 +5003,19 @@ export async function initApp() {
       date: date,
       motif: motif,
       montant: montant,
-      deviseRecue: deviseRecue,
+      deviseRecue: deviseRecue || ext?.devise || 'EUR',
       tauxChange: tauxChange
     };
 
     Store.saveDepSupp(newDepSupp);
     
-    // Close modal
-    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+    closeModal();
     
-    // Determine which page to refresh based on current user role
+    toast('Dépense supplémentaire enregistrée.', 'success');
+    
+    // Refresh page based on user role
     const ses = Auth.ses();
-    if (ses && ses.role === 'extension') {
+    if (ses?.role === 'extension') {
       pgExtBilans(ses.extId);
     } else {
       const params = curParams();

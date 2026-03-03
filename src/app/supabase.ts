@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { K, type Extension } from "./constants";
 import type { Rapport } from "./state";
 import { getSupabaseClient, isSupabaseConfigured as checkSupabaseConfigured } from "../infrastructure/supabase/client";
+import { logger } from "../infrastructure/logger";
 
 /**
  * Get the Supabase client (from infrastructure)
@@ -38,12 +39,12 @@ export async function saveExtToSupabase(ext: Extension): Promise<boolean> {
       .from("extensions")
       .upsert({ id: ext.id, data: ext }, { onConflict: "id" });
     if (error) {
-      console.error("Error saving extension to Supabase:", error);
+      logger.error("saveExtToSupabase.failed", error, { extId: ext.id });
       return false;
     }
     return true;
   } catch (e) {
-    console.error("Exception saving extension to Supabase:", e);
+    logger.error("saveExtToSupabase.exception", e, { extId: ext.id });
     return false;
   }
 }
@@ -54,17 +55,27 @@ export async function saveExtToSupabase(ext: Extension): Promise<boolean> {
 export async function deleteExtFromSupabase(extId: string): Promise<boolean> {
   const client = getClient();
   try {
-    const { error } = await client
+    // 1. Supprimer d'abord tous les rapports de l'extension
+    const { error: rapError } = await client
+      .from("rapports")
+      .delete()
+      .eq("extension_id", extId);
+    if (rapError) {
+      logger.error("deleteRapportsFromSupabase.failed", rapError, { extId });
+    }
+    
+    // 2. Puis supprimer l'extension
+    const { error: extError } = await client
       .from("extensions")
       .delete()
       .eq("id", extId);
-    if (error) {
-      console.error("Error deleting extension from Supabase:", error);
+    if (extError) {
+      logger.error("deleteExtFromSupabase.failed", extError, { extId });
       return false;
     }
     return true;
   } catch (e) {
-    console.error("Exception deleting extension from Supabase:", e);
+    logger.error("deleteExtFromSupabase.exception", e, { extId });
     return false;
   }
 }
@@ -79,12 +90,12 @@ export async function saveRapToSupabase(rap: Rapport): Promise<boolean> {
       .from("rapports")
       .upsert({ id: rap.id, data: rap }, { onConflict: "id" });
     if (error) {
-      console.error("Error saving rapport to Supabase:", error);
+      logger.error("saveRapToSupabase.failed", error, { rapId: rap.id });
       return false;
     }
     return true;
   } catch (e) {
-    console.error("Exception saving rapport to Supabase:", e);
+    logger.error("saveRapToSupabase.exception", e, { rapId: rap.id });
     return false;
   }
 }
@@ -100,12 +111,12 @@ export async function deleteRapFromSupabase(rapId: string): Promise<boolean> {
       .delete()
       .eq("id", rapId);
     if (error) {
-      console.error("Error deleting rapport from Supabase:", error);
+      logger.error("deleteRapFromSupabase.failed", error, { rapId });
       return false;
     }
     return true;
   } catch (e) {
-    console.error("Exception deleting rapport from Supabase:", e);
+    logger.error("deleteRapFromSupabase.exception", e, { rapId });
     return false;
   }
 }
@@ -199,7 +210,7 @@ export async function syncFromSupabase(showError?: (msg: string) => void): Promi
       if (raps.length) localStorage.setItem(K.RAP, JSON.stringify(raps));
     }
   } catch (e) {
-    console.error("Supabase sync error", e);
+    logger.error("syncFromSupabase.failed", e);
     if (showError) showError("Erreur de synchronisation Supabase, données locales utilisées");
   }
 }

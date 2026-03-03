@@ -17,8 +17,12 @@ declare module "docx" {
 
 interface Window {
   deleteDepSupp: (id: string) => void;
-  showAddDepSuppModal: () => void;
+  showAddDepSuppModal: (extIdOverride?: string) => void;
   saveDepSupp: () => void;
   addOffreRow: (type: string) => void;
   removeOffreRow: (btn: HTMLButtonElement) => void;
+  exportDimesBilan: () => void;
+  addNvRow: () => void;
+  removeNvRow: (idx: number) => void;
+  _currentDepSuppExtId?: string;
 }
