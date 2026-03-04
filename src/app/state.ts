@@ -5,6 +5,7 @@ import { logger } from "../infrastructure/logger";
 export type RapportDepense = { motif: string; montant: number };
 export type RapportConverti = { nom: string; tel?: string };
 export type DepenseSupp = { id: string; extensionId: string; date: string; motif: string; montant: number; deviseRecue?: string; tauxChange?: number };
+export type RecetteSupp = { id: string; extensionId: string; date: string; nature: string; montant: number; deviseRecue?: string; tauxChange?: number };
 
 // Single offering entry with currency info
 export type OffreEntry = {
@@ -323,6 +324,33 @@ export const Store = {
     localStorage.setItem(
       K.DEP_SUPP,
       JSON.stringify(this.getDepSupp().filter((d) => d.id !== id)),
+    );
+  },
+
+  // Recettes supplémentaires (hors culte)
+  getRecettesSupp(extId: string | null = null): RecetteSupp[] {
+    try {
+      const a: RecetteSupp[] = JSON.parse(localStorage.getItem(K.RECETTE_SUPP) || "null") || [];
+      return extId ? a.filter((r) => r.extensionId === extId) : a;
+    } catch {
+      return [];
+    }
+  },
+  getRecetteSuppById(id: string): RecetteSupp | null {
+    return this.getRecettesSupp().find((r) => r.id === id) || null;
+  },
+  saveRecetteSupp(r: RecetteSupp): RecetteSupp {
+    const a = this.getRecettesSupp();
+    const i = a.findIndex((x) => x.id === r.id);
+    if (i >= 0) a[i] = r;
+    else a.push(r);
+    localStorage.setItem(K.RECETTE_SUPP, JSON.stringify(a));
+    return r;
+  },
+  delRecetteSupp(id: string): void {
+    localStorage.setItem(
+      K.RECETTE_SUPP,
+      JSON.stringify(this.getRecettesSupp().filter((r) => r.id !== id)),
     );
   },
 

@@ -6,6 +6,7 @@ export const K = {
   SET: "eic_set",
   SEED: "eic_seeded",
   DEP_SUPP: "eic_dep_supp",
+  RECETTE_SUPP: "eic_recette_supp",
 } as const;
 
 export type Devise = { c: string; s: string };

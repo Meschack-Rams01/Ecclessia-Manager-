@@ -1,4 +1,4 @@
-import { Store, Auth, seedIfNeeded, type Rapport, type DepenseSupp } from "./state";
+import { Store, Auth, seedIfNeeded, type Rapport, type DepenseSupp, type RecetteSupp } from "./state";
 import { ADMIN_NAV, EXT_NAV, DEVISES, type Extension } from "./constants";
 import { fmt, fmtD, fmtTRY, fmtCur, uid, mName, setCurrentSymbol, calcTotalOffres } from "./utils";
 import { icon } from "./icons";
@@ -62,6 +62,12 @@ declare global {
     doExportBilanExt: (period: string) => void;
     exportBilanToCSV: (extId: string, period: string, yr: number, month?: number, quarter?: number) => void;
     handleLogoUpload: (input: HTMLInputElement) => void;
+    showAddDepSuppModal: (extIdOverride?: string) => void;
+    saveDepSupp: () => void;
+    deleteDepSupp: (id: string) => void;
+    showAddRecetteSuppModal: (extIdOverride?: string) => void;
+    saveRecetteSupp: () => void;
+    deleteRecetteSupp: (id: string) => void;
   }
 }
 
@@ -621,10 +627,10 @@ function doExportPDF(rapId: string) {
   const v = r.ventilation;
   
   const rows = [
-    ["Offrandes ordinaires", r.offrandes?.ordinaires || 0, v?.ordinaires.dime || 0, v?.ordinaires.social || 0, v?.ordinaires.reste || 0],
-    ["Offrandes pour Orateur", r.offrandes?.orateur || 0, v?.orateur.dime || 0, v?.orateur.social || 0, v?.orateur.reste || 0],
-    ["Dîmes", r.offrandes?.dimes || 0, v?.dimes.dime || 0, v?.dimes.social || 0, v?.dimes.reste || 0],
-    ["Actions de Grâce", r.offrandes?.actionsGrace || 0, v?.actionsGrace.dime || 0, v?.actionsGrace.social || 0, v?.actionsGrace.reste || 0],
+    ["Offrandes ordinaires", calcTotalOffres(r.offrandes?.ordinaires), v?.ordinaires.dime || 0, v?.ordinaires.social || 0, v?.ordinaires.reste || 0],
+    ["Offrandes pour Orateur", calcTotalOffres(r.offrandes?.orateur), v?.orateur.dime || 0, v?.orateur.social || 0, v?.orateur.reste || 0],
+    ["Dîmes", calcTotalOffres(r.offrandes?.dimes), v?.dimes.dime || 0, v?.dimes.social || 0, v?.dimes.reste || 0],
+    ["Actions de Grâce", calcTotalOffres(r.offrandes?.actionsGrace), v?.actionsGrace.dime || 0, v?.actionsGrace.social || 0, v?.actionsGrace.reste || 0],
   ];
   
   const extSym = ext?.symbole || "€";
@@ -649,7 +655,15 @@ function doExportPDF(rapId: string) {
   doc.text("TOTAL", x + 2, y + 1);
   x += colWidths[0];
   
-  const totals = [r.offrandes?.total || 0, v?.totalDime || 0, v?.totalSocial || 0, v?.reste || 0];
+  const totals = [
+    calcTotalOffres(r.offrandes?.ordinaires || []) + 
+    calcTotalOffres(r.offrandes?.orateur || []) + 
+    calcTotalOffres(r.offrandes?.dimes || []) + 
+    calcTotalOffres(r.offrandes?.actionsGrace || []),
+    v?.totalDime || 0, 
+    v?.totalSocial || 0, 
+    v?.reste || 0
+  ];
   totals.forEach((cell, i) => {
     doc.rect(x, y - 4, colWidths[i + 1], 8);
     doc.text(fmtTRY(cell, extSym), x + colWidths[i + 1] - 2, y + 1, { align: "right" });
@@ -847,35 +861,35 @@ function doExportHTML(rapId: string) {
       <tbody>
         <tr>
           <td>Offrandes ordinaires</td>
-          <td class="txt-right">${fc(r.offrandes?.ordinaires || 0)}</td>
+          <td class="txt-right">${fc(calcTotalOffres(r.offrandes?.ordinaires))}</td>
           <td class="txt-right">${fc(v?.ordinaires.dime || 0)}</td>
           <td class="txt-right">${fc(v?.ordinaires.social || 0)}</td>
           <td class="txt-right">${fc(v?.ordinaires.reste || 0)}</td>
         </tr>
         <tr>
           <td>Offrandes pour Orateur</td>
-          <td class="txt-right">${fc(r.offrandes?.orateur || 0)}</td>
+          <td class="txt-right">${fc(calcTotalOffres(r.offrandes?.orateur))}</td>
           <td class="txt-right">${fc(v?.orateur.dime || 0)}</td>
           <td class="txt-right">${fc(v?.orateur.social || 0)}</td>
           <td class="txt-right">${fc(v?.orateur.reste || 0)}</td>
         </tr>
         <tr>
           <td>Dîmes</td>
-          <td class="txt-right">${fc(r.offrandes?.dimes || 0)}</td>
+          <td class="txt-right">${fc(calcTotalOffres(r.offrandes?.dimes))}</td>
           <td class="txt-right">${fc(v?.dimes.dime || 0)}</td>
           <td class="txt-right">${fc(v?.dimes.social || 0)}</td>
           <td class="txt-right">${fc(v?.dimes.reste || 0)}</td>
         </tr>
         <tr>
           <td>Actions de Grâce</td>
-          <td class="txt-right">${fc(r.offrandes?.actionsGrace || 0)}</td>
+          <td class="txt-right">${fc(calcTotalOffres(r.offrandes?.actionsGrace))}</td>
           <td class="txt-right">${fc(v?.actionsGrace.dime || 0)}</td>
           <td class="txt-right">${fc(v?.actionsGrace.social || 0)}</td>
           <td class="txt-right">${fc(v?.actionsGrace.reste || 0)}</td>
         </tr>
         <tr class="row-total">
           <td>TOTAL</td>
-          <td class="txt-right">${fc(r.offrandes?.total || 0)}</td>
+          <td class="txt-right">${fc(calcTotalOffres(r.offrandes?.ordinaires) + calcTotalOffres(r.offrandes?.orateur) + calcTotalOffres(r.offrandes?.dimes) + calcTotalOffres(r.offrandes?.actionsGrace))}</td>
           <td class="txt-right">${fc(v?.totalDime || 0)}</td>
           <td class="txt-right">${fc(v?.totalSocial || 0)}</td>
           <td class="txt-right">${fc(v?.reste || 0)}</td>
@@ -986,19 +1000,17 @@ function doExportHTML(rapId: string) {
       width: 210mm;
       min-height: 297mm;
       margin: 0 auto;
-      padding: 15mm;
-      padding-top: 12mm;
+      padding: 10mm 15mm;
       background: #fff;
     }
 
     /* ── Page Setup ───────────────────────────────────── */
     @page { 
       size: A4; 
-      margin: 15mm;
-      margin-top: 12mm;
+      margin: 10mm 15mm;
     }
     @page :first {
-      margin-top: 15mm;
+      margin-top: 10mm;
     }
     @page :left {
       margin-left: 18mm;
@@ -1012,7 +1024,7 @@ function doExportHTML(rapId: string) {
         print-color-adjust: exact; 
         width:100%!important; 
         margin:0!important; 
-        padding:12mm 15mm!important; 
+        padding:8mm 15mm!important; 
       }
       .no-print { display: none !important; }
     }
@@ -1021,15 +1033,15 @@ function doExportHTML(rapId: string) {
     .header-bar {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding-bottom: 12px;
-      margin-bottom: 16px;
+      gap: 12px;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
       border-bottom: 2px solid #1e3a8a;
     }
     .header-bar--center { justify-content: center; }
-    .header-logo { height: 40px; width: auto; object-fit: contain; }
+    .header-logo { height: 35px; width: auto; object-fit: contain; }
     .header-church { 
-      font-size: 12pt; 
+      font-size: 11pt; 
       font-weight: 700; 
       text-transform: uppercase; 
       letter-spacing: 0.5px; 
@@ -1041,36 +1053,35 @@ function doExportHTML(rapId: string) {
       color: #374151; 
       text-transform: uppercase; 
       letter-spacing: 1px; 
-      margin-top: 1px;
+      margin-top: 2px;
     }
     .header-date { 
-      font-size: 9pt; 
+      font-size: 8.5pt; 
       color: #6b7280; 
       margin-top: 2px;
     }
 
-    /* Hide header on subsequent pages */
+    /* Hide header on subsequent pages - ONLY hide the duplicate in footer */
     @media print {
-      .header-bar { display: none; }
-      body { padding-top: 12mm !important; }
+      body { padding-top: 8mm !important; }
     }
 
     /* ── Sections ─────────────────────────────────────── */
     .section {
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       page-break-inside: avoid;
       break-inside: avoid;
-      orphans: 4;
-      widows: 4;
+      orphans: 3;
+      widows: 3;
     }
     .section-title {
-      font-size: 9.5pt;
+      font-size: 9pt;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.6px;
+      letter-spacing: 0.5px;
       color: #1e3a8a;
-      padding-bottom: 4px;
-      margin-bottom: 8px;
+      padding-bottom: 3px;
+      margin-bottom: 6px;
       border-bottom: 1.5px solid #1e3a8a;
       break-after: avoid;
       page-break-after: avoid;
@@ -1081,18 +1092,20 @@ function doExportHTML(rapId: string) {
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 6px 24px;
+      gap: 4px 16px;
       background: #f9fafb;
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-radius: 4px;
       border: 1px solid #e5e7eb;
     }
     .info-grid .label { 
       font-weight: 600; 
+      font-size: 9pt;
       color: #374151; 
     }
     .info-grid .value { 
       color: #4b5563; 
+      font-size: 9pt;
       text-align: justify;
       text-justify: distribute;
       hyphens: auto;
@@ -1104,12 +1117,12 @@ function doExportHTML(rapId: string) {
     table { 
       width: 100%; 
       border-collapse: collapse; 
-      font-size: 9pt;
+      font-size: 8.5pt;
       page-break-inside: avoid;
       break-inside: avoid;
     }
     th, td { 
-      padding: 6px 10px; 
+      padding: 4px 8px; 
       border: 1px solid #d1d5db; 
       vertical-align: middle;
       text-align: left;
@@ -1120,9 +1133,10 @@ function doExportHTML(rapId: string) {
       color: #1f2937; 
       white-space: nowrap;
       text-transform: uppercase;
-      font-size: 8pt;
+      font-size: 7.5pt;
       letter-spacing: 0.3px;
       vertical-align: middle;
+      padding: 5px 8px;
     }
     tbody tr:nth-child(even) { background: #fafbfc; }
     tbody tr { page-break-inside: avoid; break-inside: avoid; }
@@ -1178,16 +1192,16 @@ function doExportHTML(rapId: string) {
     }
     .eff-table td, .eff-table th { 
       text-align: center; 
-      padding: 8px 16px; 
+      padding: 5px 12px; 
       vertical-align: middle;
     }
     .eff-table .eff-val { 
-      font-size: 13pt; 
+      font-size: 12pt; 
       font-weight: 700; 
       color: #1e3a8a; 
     }
     .eff-table .eff-lbl { 
-      font-size: 7.5pt; 
+      font-size: 7pt; 
       color: #6b7280; 
       text-transform: uppercase;
       letter-spacing: 0.3px;
@@ -1196,44 +1210,44 @@ function doExportHTML(rapId: string) {
     /* ── Reste final ──────────────────────────────────── */
     .reste-final {
       display: inline-block;
-      margin-top: 6px;
-      padding: 8px 20px;
+      margin-top: 4px;
+      padding: 6px 16px;
       background: #eff6ff;
       border: 2px solid #1e3a8a;
       border-radius: 4px;
       font-weight: 700;
-      font-size: 11pt;
+      font-size: 10pt;
       color: #1e3a8a;
     }
 
     /* ── Signatures ───────────────────────────────────── */
     .sig-block {
-      margin-top: 30px;
-      padding-top: 12px;
+      margin-top: 20px;
+      padding-top: 10px;
       border-top: 2px solid #1e3a8a;
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      gap: 24px;
+      gap: 16px;
       page-break-inside: avoid;
       break-inside: avoid;
     }
     .sig-item { text-align: center; }
     .sig-line { 
       border-bottom: 1px solid #9ca3af; 
-      height: 32px; 
-      margin-bottom: 6px; 
+      height: 28px; 
+      margin-bottom: 4px; 
     }
     .sig-role { 
       font-weight: 700; 
-      font-size: 8.5pt; 
+      font-size: 8pt; 
       color: #374151; 
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
     .sig-name { 
-      font-size: 8pt; 
+      font-size: 7.5pt; 
       color: #6b7280; 
-      margin-top: 3px; 
+      margin-top: 2px; 
     }
 
     /* ── Footer ──────────────────────────────────────── */
@@ -1509,7 +1523,7 @@ async function doExportDOCX(rapId: string) {
     new TableRow({
       children: [
         new TableCell({ children: [new Paragraph("Offrandes ordinaires")] }),
-        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.ordinaires || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(calcTotalOffres(r.offrandes?.ordinaires), sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.ordinaires.dime || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.ordinaires.social || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.ordinaires.reste || 0, sym))] }),
@@ -1518,7 +1532,7 @@ async function doExportDOCX(rapId: string) {
     new TableRow({
       children: [
         new TableCell({ children: [new Paragraph("Offrandes pour Orateur")] }),
-        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.orateur || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(calcTotalOffres(r.offrandes?.orateur), sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.orateur.dime || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.orateur.social || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.orateur.reste || 0, sym))] }),
@@ -1527,7 +1541,7 @@ async function doExportDOCX(rapId: string) {
     new TableRow({
       children: [
         new TableCell({ children: [new Paragraph("Dîmes")] }),
-        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.dimes || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(calcTotalOffres(r.offrandes?.dimes), sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.dimes.dime || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.dimes.social || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.dimes.reste || 0, sym))] }),
@@ -1536,7 +1550,7 @@ async function doExportDOCX(rapId: string) {
     new TableRow({
       children: [
         new TableCell({ children: [new Paragraph("Actions de Grâce")] }),
-        new TableCell({ children: [new Paragraph(fmt(r.offrandes?.actionsGrace || 0, sym))] }),
+        new TableCell({ children: [new Paragraph(fmt(calcTotalOffres(r.offrandes?.actionsGrace), sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.actionsGrace.dime || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.actionsGrace.social || 0, sym))] }),
         new TableCell({ children: [new Paragraph(fmt(v?.actionsGrace.reste || 0, sym))] }),
@@ -1545,7 +1559,7 @@ async function doExportDOCX(rapId: string) {
     new TableRow({
       children: [
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "TOTAL", bold: true })] })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(r.offrandes?.total || 0, sym), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(calcTotalOffres(r.offrandes?.ordinaires) + calcTotalOffres(r.offrandes?.orateur) + calcTotalOffres(r.offrandes?.dimes) + calcTotalOffres(r.offrandes?.actionsGrace), sym), bold: true })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(v?.totalDime || 0, sym), bold: true })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(v?.totalSocial || 0, sym), bold: true })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(v?.reste || 0, sym), bold: true })] })] }),
@@ -1675,6 +1689,21 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
     return true;
   });
 
+  // Get recettes supplementaires for the period
+  const recSupp = Store.getRecettesSupp(extId).filter(r => {
+    const rDate = new Date(r.date + "T00:00");
+    if (rDate.getFullYear() !== year) return false;
+    if (period === "monthly" && month !== undefined) {
+      return rDate.getMonth() === month;
+    } else if (period === "quarterly" && quarter !== undefined) {
+      const qStart = quarter * 3;
+      const qEnd = qStart + 2;
+      const m = rDate.getMonth();
+      return m >= qStart && m <= qEnd;
+    }
+    return true;
+  });
+
   const data = {
     ordinaires: 0,
     orateur: 0,
@@ -1686,12 +1715,14 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
     resteTotal: 0,
     totalDepenses: 0,
     totalDepSupp: 0,
+    totalRecSupp: 0,
     resteApresDepSupp: 0,
     soldeFinal: 0,
     cultes: raps.length,
     presence: 0,
     nouveaux: 0,
     depSupp: depSupp,
+    recSupp: recSupp,
   };
 
   raps.forEach(r => {
@@ -1711,7 +1742,8 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
 
   // Calculate depenses supplementaires totals
   data.totalDepSupp = depSupp.reduce((sum, d) => sum + d.montant, 0);
-  data.resteApresDepSupp = data.resteTotal - data.totalDepSupp;
+  data.totalRecSupp = recSupp.reduce((sum, r) => sum + r.montant, 0);
+  data.resteApresDepSupp = data.resteTotal + data.totalRecSupp - data.totalDepSupp;
   data.soldeFinal = data.resteApresDepSupp - data.totalDepenses;
 
   return data;
@@ -1860,6 +1892,9 @@ function pgAdminBilansFinancier() {
         <div class="form-section-title mb-12">RÉSUMÉ FINANCIER</div>
         <div class="calc-box">
           <div class="calc-row"><span>Total Recettes</span><span>${fmtTRY(data.totalRecettes)}</span></div>
+          ${data.totalRecSupp > 0 ? `
+          <div class="calc-row"><span>+ Recettes Supplémentaires</span><span class="text-green-600">${fmtTRY(data.totalRecSupp)}</span></div>
+          ` : ''}
           <div class="calc-row"><span>- Prélèvement Dîme (10%)</span><span class="text-red-600">${fmtTRY(data.dimeTotal)}</span></div>
           <div class="calc-row"><span>- Prélèvement Social (${socialPct}%)</span><span class="text-red-600">${fmtTRY(data.socialTotal)}</span></div>
           <div class="calc-row total-row"><span>= Montant Disponible</span><span>${fmtTRY(data.resteTotal)}</span></div>
@@ -1921,12 +1956,63 @@ function pgAdminBilansFinancier() {
       <p class="text-gray-500 text-center py-8">Aucune dépense supplémentaire enregistrée pour cette période.</p>
       `}
     </div>
+
+    <div class="card mb-12">
+      <div class="flex justify-between items-center mb-12">
+        <div class="form-section-title mb-0">RECETTES SUPPLÉMENTAIRES (HORS CULTES)</div>
+        <button class="btn btn-primary btn-sm" onclick="window.showAddRecSuppModal('${extIdToUse || ''}')">+ Ajouter</button>
+      </div>
+      ${data.recSupp && data.recSupp.length > 0 ? `
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Date</th>
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Nature</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Montant</th>
+            <th class="border border-gray-300 px-4 py-3 text-center font-bold w-16">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.recSupp.map(r => `
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">${fmtD(r.date)}</td>
+            <td class="border border-gray-300 px-4 py-3">${r.nature}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(r.montant)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-center">
+              <button class="btn btn-red btn-sm" onclick="deleteRecetteSupp('${r.id}')">Suppr</button>
+            </td>
+          </tr>
+          `).join('')}
+          <tr class="bg-gray-200 font-bold">
+            <td class="border border-gray-300 px-4 py-3" colspan="2">Total</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(data.totalRecSupp)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      ` : `
+      <p class="text-gray-500 text-center py-8">Aucune recette supplémentaire enregistrée pour cette période.</p>
+      `}
+    </div>
     ` : `
     <div class="card mb-12">
-      <div class="form-section-title mb-12">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
+      <div class="flex justify-between items-center mb-12">
+        <div class="form-section-title mb-0">DÉPENSES SUPPLÉMENTAIRES (HORS CULTES)</div>
+        <button class="btn btn-primary btn-sm" onclick="window.showAddDepSuppModal('')">+ Ajouter</button>
+      </div>
       <div class="text-center py-8 text-gray-500">
         <p class="mb-4">Sélectionnez une extension ci-dessus pour gérer les dépenses supplémentaires.</p>
         <p class="text-sm">Ces dépenses sont enregistrées par extension (loyer, matériel, aide sociale...)</p>
+      </div>
+    </div>
+    <div class="card mb-12">
+      <div class="flex justify-between items-center mb-12">
+        <div class="form-section-title mb-0">RECETTES SUPPLÉMENTAIRES (HORS CULTES)</div>
+        <button class="btn btn-primary btn-sm" onclick="window.showAddRecetteSuppModal('')">+ Ajouter</button>
+      </div>
+      <div class="text-center py-8 text-gray-500">
+        <p class="mb-4">Sélectionnez une extension ci-dessus pour gérer les recettes supplémentaires.</p>
+        <p class="text-sm">Ces recettes sont enregistrées par extension (dîmes, actions de grâce, remboursements...)</p>
       </div>
     </div>
     `}
@@ -1976,12 +2062,19 @@ function doExportBilanHTML() {
   const ext = extId ? exts.find(e => e.id === extId) : null;
   const sym = ext?.symbole || "€";
   const fc = (val: unknown) => fmtCur(val, sym);
+  const generationDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const data = getBilanData(extId, period, yr, month, quarter);
 
   // Period type labels
   const periodTypeLabel = period === "monthly" ? "MENSUEL" : period === "quarterly" ? "TRIMESTRIEL" : "ANNUEL";
   const churchName = ext?.nom || cfg.nom || "Emerge in Christ";
+  const extDevise = ext?.devise || "EUR";
+  
+  // Calculate previous period solde initial (simplified - would need actual historical data)
+  const soldeInitial = 0; // TODO: Fetch from previous period closing
+  const montantDisponible = data.resteTotal + data.totalRecSupp - data.dimeTotal - data.socialTotal;
+  const ajustements = 0; // TODO: Add adjustment tracking if needed
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -2416,6 +2509,35 @@ function doExportBilanHTML() {
   </div>
   ` : ''}
 
+  <!-- RECETTES SUPPLÉMENTAIRES (HORS CULTES) -->
+  ${data.recSupp && data.recSupp.length > 0 ? `
+  <div class="section">
+    <div class="section-title">Recettes Supplémentaires (Hors Cultes)</div>
+    <table class="dep-supp-table" style="background: #ecfdf5;">
+      <thead>
+        <tr>
+          <th class="txt-left">Date</th>
+          <th class="txt-left">Nature</th>
+          <th class="txt-right">Montant (${sym})</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.recSupp.map(r => `
+          <tr>
+            <td>${fmtD(r.date)}</td>
+            <td>${r.nature}</td>
+            <td class="txt-right">${fc(r.montant)}</td>
+          </tr>
+        `).join('')}
+        <tr class="row-total">
+          <td colspan="2">Total Recettes Supplémentaires</td>
+          <td class="txt-right">${fc(data.totalRecSupp)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  ` : ''}
+
   <!-- RÉSUMÉ FINANCIER -->
   <div class="section">
     <div class="section-title">Résumé Financier</div>
@@ -2425,6 +2547,12 @@ function doExportBilanHTML() {
           <td class="label">Total Recettes (Cultes)</td>
           <td class="amount">${fc(data.totalRecettes)}</td>
         </tr>
+        ${data.totalRecSupp > 0 ? `
+        <tr>
+          <td class="label">+ Recettes Supplémentaires</td>
+          <td class="amount amount-positive">+ ${fc(data.totalRecSupp)}</td>
+        </tr>
+        ` : ''}
         <tr>
           <td class="label">− Prélèvement Dîme (10%)</td>
           <td class="amount amount-negative">− ${fc(data.dimeTotal)}</td>
@@ -3816,6 +3944,45 @@ function pgExtBilans(extId: string) {
       `}
     </div>
 
+    <!-- Recettes Supplémentaires -->
+    <div class="card mb-12">
+      <div class="flex justify-between items-center mb-12">
+        <div class="form-section-title mb-0">RECETTES SUPPLÉMENTAIRES (HORS CULTES)</div>
+        <button class="btn btn-primary btn-sm" onclick="window.showAddRecetteSuppModal('${extId || ''}')">+ Ajouter</button>
+      </div>
+      ${currentYearData.recSupp && currentYearData.recSupp.length > 0 ? `
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Date</th>
+            <th class="border border-gray-300 px-4 py-3 text-left font-bold">Nature</th>
+            <th class="border border-gray-300 px-4 py-3 text-right font-bold">Montant</th>
+            <th class="border border-gray-300 px-4 py-3 text-center font-bold w-16">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${currentYearData.recSupp.map(r => `
+          <tr>
+            <td class="border border-gray-300 px-4 py-3">${fmtD(r.date)}</td>
+            <td class="border border-gray-300 px-4 py-3">${r.nature}</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(r.montant)}</td>
+            <td class="border border-gray-300 px-4 py-3 text-center">
+              <button class="btn btn-red btn-sm" onclick="deleteRecetteSupp('${r.id}')">Suppr</button>
+            </td>
+          </tr>
+          `).join('')}
+          <tr class="bg-gray-200 font-bold">
+            <td class="border border-gray-300 px-4 py-3" colspan="2">Total</td>
+            <td class="border border-gray-300 px-4 py-3 text-right">${fmtTRY(currentYearData.totalRecSupp)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      ` : `
+      <p class="text-gray-500 text-center py-8">Aucune recette supplémentaire enregistrée cette année.</p>
+      `}
+    </div>
+
     <div class="form-section-title mb-12">Détails mensuels</div>
     <div class="table-wrap">
       <table>
@@ -4401,7 +4568,20 @@ function exportBilanToCSV(extId: string | null, period: "monthly" | "quarterly" 
   csv += "Actions de Grace," + data.actionsGrace.toFixed(2) + "," + (data.actionsGrace * 0.1).toFixed(2) + "," + (data.actionsGrace * socialPct / 100).toFixed(2) + "," + (data.actionsGrace * (1 - 0.1 - socialPct / 100)).toFixed(2) + "\n";
   csv += "TOTAL," + data.totalRecettes.toFixed(2) + "," + data.dimeTotal.toFixed(2) + "," + data.socialTotal.toFixed(2) + "," + data.resteTotal.toFixed(2) + "\n\n";
   
-  // Section 2: DEPENSES SUPPLEMENTAIRES (HORS CULTES)
+  // Section 2: RECETTES SUPPLEMENTAIRES (HORS CULTES)
+  csv += "=== RECETTES SUPPLEMENTAIRES (HORS CULTES) ===\n";
+  csv += "Date,Nature,Montant\n";
+  if (data.recSupp && data.recSupp.length > 0) {
+    data.recSupp.forEach(r => {
+      csv += r.date + ",'" + r.nature.replace(/'/g, "'") + "'," + r.montant.toFixed(2) + "\n";
+    });
+    csv += "TOTAL RECETTES SUPPLEMENTAIRES,," + data.totalRecSupp.toFixed(2) + "\n";
+  } else {
+    csv += "Aucune recette supplementaire,,0.00\n";
+  }
+  csv += "\n";
+  
+  // Section 3: DEPENSES SUPPLEMENTAIRES (HORS CULTES)
   csv += "=== DEPENSES SUPPLEMENTAIRES (HORS CULTES) ===\n";
   csv += "Date,Motif,Montant\n";
   if (data.depSupp && data.depSupp.length > 0) {
@@ -5022,6 +5202,153 @@ export async function initApp() {
       navTo('/admin/bilans/financier', params);
     }
   };
+
+  /**
+   * Open modal for adding supplementary revenue (recette supplémentaire)
+   */
+  window.showAddRecetteSuppModal = function(extIdOverride?: string) {
+    const extId = getDepSuppExtId(extIdOverride);
+    
+    if (!extId) {
+      toast('Veuillez sélectionner une extension.', 'error');
+      return;
+    }
+    
+    const ext = Store.getExt(extId);
+    if (!ext) {
+      toast('Extension non trouvée.', 'error');
+      return;
+    }
+    
+    const params = curParams();
+    const bilanParams = (window as any)._bilanParams || {};
+    const yr = params.year ? parseInt(params.year) : bilanParams.yr || new Date().getFullYear();
+    
+    // Store current extension ID for save function
+    (window as any)._currentRecetteSuppExtId = extId;
+    
+    openModal(`
+      <div class="modal-header">
+        <h3>Ajouter une Recette Supplémentaire</h3>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-4 text-sm text-gray-600">Ces recettes sont hors culte (dîmes anticipées, dons spéciaux, remboursements, etc.) et s'ajoutent au reste cumulé.</p>
+        <div class="form-group mb-4">
+          <label class="form-label" for="rs-date">Date</label>
+          <input type="date" id="rs-date" class="form-input" value="${yr}-01-01" />
+        </div>
+        <div class="form-group mb-4">
+          <label class="form-label" for="rs-nature">Nature de la recette</label>
+          <input type="text" id="rs-nature" class="form-input" placeholder="Ex: Dîme, Action de grâce, Remboursement..." />
+        </div>
+        <div class="form-group mb-4">
+          <label class="form-label" for="rs-montant">Montant (${ext?.symbole || '€'})</label>
+          <input type="number" id="rs-montant" class="form-input" placeholder="0.00" step="0.01" min="0" />
+        </div>
+        <div class="form-group mb-4">
+          <label class="form-label" for="rs-devise">Devise reçue</label>
+          <select id="rs-devise" class="form-input">
+            ${DEVISES.map(d => `<option value="${d.c}" ${(ext?.devise || 'EUR') === d.c ? 'selected' : ''}>${d.c} — ${d.s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group mb-4">
+          <label class="form-label" for="rs-taux">Taux de change</label>
+          <input type="number" id="rs-taux" class="form-input" placeholder="1" step="0.0001" min="0.0001" value="1" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveRecetteSupp()">Enregistrer</button>
+      </div>
+    `);
+  };
+
+  /**
+   * Save supplementary revenue from modal
+   */
+  window.saveRecetteSupp = function() {
+    const extId = (window as any)._currentRecetteSuppExtId;
+    
+    if (!extId) {
+      toast('Erreur: extension non définie.', 'error');
+      return;
+    }
+    
+    const date = (document.getElementById('rs-date') as HTMLInputElement)?.value?.trim();
+    const nature = (document.getElementById('rs-nature') as HTMLInputElement)?.value?.trim();
+    let montant = parseFloat((document.getElementById('rs-montant') as HTMLInputElement)?.value) || 0;
+    const deviseRecue = (document.getElementById('rs-devise') as HTMLSelectElement)?.value;
+    const tauxChange = parseFloat((document.getElementById('rs-taux') as HTMLInputElement)?.value) || 1;
+
+    // Validation
+    if (!date) {
+      toast('Veuillez sélectionner une date.', 'error');
+      return;
+    }
+    
+    if (!nature) {
+      toast('Veuillez saisir la nature de la recette.', 'error');
+      return;
+    }
+    
+    if (montant <= 0) {
+      toast('Veuillez saisir un montant valide.', 'error');
+      return;
+    }
+
+    // Convert amount if different currency
+    const ext = Store.getExt(extId);
+    if (ext && deviseRecue && deviseRecue !== ext.devise && tauxChange > 0) {
+      montant = +(montant * tauxChange).toFixed(2);
+    }
+
+    const newRecetteSupp: RecetteSupp = {
+      id: 'rs_' + Date.now(),
+      extensionId: extId,
+      date: date,
+      nature: nature,
+      montant: montant,
+      deviseRecue: deviseRecue || ext?.devise || 'EUR',
+      tauxChange: tauxChange
+    };
+
+    Store.saveRecetteSupp(newRecetteSupp);
+    
+    closeModal();
+    
+    toast('Recette supplémentaire enregistrée.', 'success');
+    
+    // Refresh page based on user role
+    const ses = Auth.ses();
+    if (ses?.role === 'extension') {
+      pgExtBilans(ses.extId);
+    } else {
+      const params = curParams();
+      navTo('/admin/bilans/financier', params);
+    }
+  };
+
+  /**
+   * Delete supplementary revenue
+   */
+  window.deleteRecetteSupp = function(id: string) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette recette ?')) {
+      Store.delRecetteSupp(id);
+      const ses = Auth.ses();
+      if (ses && ses.role === 'extension') {
+        pgExtBilans(ses.extId);
+      } else {
+        const params = curParams();
+        navTo('/admin/bilans/financier', params);
+      }
+    }
+  };
+
+  // Alias functions for shorter names
+  (window as any).deleteRecSupp = window.deleteRecetteSupp;
+  (window as any).showAddRecSuppModal = window.showAddRecetteSuppModal;
+  (window as any).saveRecSupp = window.saveRecetteSupp;
 
   const ses = Auth.ses();
   if (ses) {

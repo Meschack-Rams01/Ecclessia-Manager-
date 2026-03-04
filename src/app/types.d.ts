@@ -19,10 +19,17 @@ interface Window {
   deleteDepSupp: (id: string) => void;
   showAddDepSuppModal: (extIdOverride?: string) => void;
   saveDepSupp: () => void;
+  deleteRecetteSupp: (id: string) => void;
+  deleteRecSupp: (id: string) => void;
+  showAddRecetteSuppModal: (extIdOverride?: string) => void;
+  showAddRecSuppModal: (extIdOverride?: string) => void;
+  saveRecetteSupp: () => void;
+  saveRecSupp: () => void;
   addOffreRow: (type: string) => void;
   removeOffreRow: (btn: HTMLButtonElement) => void;
   exportDimesBilan: () => void;
   addNvRow: () => void;
   removeNvRow: (idx: number) => void;
   _currentDepSuppExtId?: string;
+  _currentRecetteSuppExtId?: string;
 }
