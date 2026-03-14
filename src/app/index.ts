@@ -1719,8 +1719,14 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
     resteApresDepSupp: 0,
     soldeFinal: 0,
     cultes: raps.length,
+    presencePapas: 0,
+    presenceMamans: 0,
+    presenceFreres: 0,
+    presenceSoeurs: 0,
+    presenceEnfants: 0,
     presence: 0,
     nouveaux: 0,
+    nouveauxVenus: 0,
     depSupp: depSupp,
     recSupp: recSupp,
   };
@@ -1736,8 +1742,17 @@ function getBilanData(extId: string | null, period: "monthly" | "quarterly" | "a
     data.resteTotal += r.ventilation?.reste || 0;
     data.totalDepenses += r.totalDepenses || 0;
     data.soldeFinal += r.soldeFinal || 0;
+    
+    // Explicitly track detailed demographics
+    data.presencePapas += r.effectif?.papas || 0;
+    data.presenceMamans += r.effectif?.mamans || 0;
+    data.presenceFreres += r.effectif?.freres || 0;
+    data.presenceSoeurs += r.effectif?.soeurs || 0;
+    data.presenceEnfants += r.effectif?.enfants || 0;
     data.presence += r.effectif?.total || 0;
+    
     data.nouveaux += r.nouveaux?.length || 0;
+    data.nouveauxVenus += r.nouveauxVenus?.length || 0;
   });
 
   // Calculate depenses supplementaires totals
@@ -4290,6 +4305,7 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
       grid-template-columns: repeat(3, 1fr);
       gap: 12px;
       font-size: 9pt;
+      margin-bottom: 20px;
     }
     .other-stats .stat-item {
       padding: 8px 12px;
@@ -4298,6 +4314,35 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
     }
     .other-stats .stat-item strong {
       color: #374151;
+    }
+
+    /* ── Attendance Details ──────────────────────────── */
+    .attendance-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+    }
+    .att-box {
+      border: 1px solid #d1d5db;
+      background: #fdfdfd;
+      text-align: center;
+      padding: 8px 4px;
+    }
+    .att-val {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #1e3a8a;
+    }
+    .att-lbl {
+      font-size: 7pt;
+      color: #6b7280;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .att-box.total {
+      background: #eff6ff;
+      border-color: #93c5fd;
+    }
     }
 
     /* ── Signatures ───────────────────────────────────── */
@@ -4450,42 +4495,110 @@ function doExportBilanExtHTML(period: "monthly" | "quarterly" | "annual") {
     <table class="resume-table">
       <tbody>
         <tr>
-          <td class="label">Total Recettes</td>
+          <td class="label">Total Recettes (Cultes)</td>
           <td class="amount">${fc(data.totalRecettes)}</td>
         </tr>
         <tr>
-          <td class="label">− Prélèvement Dîme (10%)</td>
+          <td class="label">− Prélèvement Dîme (10 %)</td>
           <td class="amount amount-negative">− ${fc(data.dimeTotal)}</td>
         </tr>
         <tr>
-          <td class="label">− Prélèvement Social (${socialPct}%)</td>
+          <td class="label">− Prélèvement Social (${socialPct} %)</td>
           <td class="amount amount-negative">− ${fc(data.socialTotal)}</td>
         </tr>
         <tr class="subtotal">
-          <td class="label">= Montant Disponible</td>
+          <td class="label">= Montant Disponible (Cultes)</td>
           <td class="amount">${fc(data.resteTotal)}</td>
         </tr>
         <tr>
-          <td class="label">− Total Dépenses</td>
+          <td class="label">+ Recettes Supplémentaires (Hors Cultes)</td>
+          <td class="amount amount-positive">+ ${fc(data.totalRecSupp)}</td>
+        </tr>
+        <tr class="subtotal">
+          <td class="label" style="color: #1e3a8a;">= TOTAL DES ENTRÉES</td>
+          <td class="amount" style="color: #1e3a8a;">${fc(data.resteTotal + data.totalRecSupp)}</td>
+        </tr>
+        <tr>
+          <td class="label">− Total Dépenses (Cultes)</td>
           <td class="amount amount-negative">− ${fc(data.totalDepenses)}</td>
         </tr>
+        <tr>
+          <td class="label">− Dépenses Supplémentaires (Hors Cultes)</td>
+          <td class="amount amount-negative">− ${fc(data.totalDepSupp)}</td>
+        </tr>
         <tr class="final">
-          <td class="label">= Solde Final</td>
+          <td class="label">= SOLDE FINAL</td>
           <td class="amount ${data.soldeFinal >= 0 ? 'amount-positive' : 'amount-negative'}">${fc(data.soldeFinal)}</td>
         </tr>
       </tbody>
     </table>
   </div>
-
-  <!-- AUTRES STATISTIQUES -->
+  
+  <!-- DÉTAILS SUPPLÉMENTAIRES -->
+  ${(data.recSupp && data.recSupp.length > 0) || (data.depSupp && data.depSupp.length > 0) ? `
   <div class="section">
-    <div class="section-title">Autres Statistiques</div>
+    <div class="section-title" style="font-size:8.5pt; color:#6b7280; border-bottom:1px solid #d1d5db;">Détails (Hors Cultes)</div>
+    <div style="display:flex; gap:20px; margin-top:10px;">
+      ${data.recSupp && data.recSupp.length > 0 ? `
+      <div style="flex:1;">
+        <table style="font-size:7.5pt;">
+          <thead><tr><th colspan="3" style="background:#dcfce7; color:#166534;">Recettes Supplémentaires</th></tr>
+          <tr><th>Date</th><th>Nature</th><th class="txt-right">Montant</th></tr></thead>
+          <tbody>
+            ${data.recSupp.map(r => `<tr><td>${fmtD(r.date)}</td><td>${r.nature}</td><td class="txt-right">${fc(r.montant)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+      
+      ${data.depSupp && data.depSupp.length > 0 ? `
+      <div style="flex:1;">
+        <table style="font-size:7.5pt;">
+          <thead><tr><th colspan="3" style="background:#fee2e2; color:#991b1b;">Dépenses Supplémentaires</th></tr>
+          <tr><th>Date</th><th>Motif</th><th class="txt-right">Montant</th></tr></thead>
+          <tbody>
+            ${data.depSupp.map(d => `<tr><td>${fmtD(d.date)}</td><td>${d.motif}</td><td class="txt-right">${fc(d.montant)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+    </div>
+  </div>` : ''}
+
+  <!-- AUTRES STATISTIQUES & PRÉSENCE -->
+  <div class="section">
+    <div class="section-title">Statistiques & Présence Moyenne</div>
     <div class="other-stats">
       <div class="stat-item"><strong>Nombre de cultes :</strong> ${data.cultes}</div>
-      <div class="stat-item"><strong>Présence totale :</strong> ${data.presence}</div>
-      <div class="stat-item"><strong>Présence moyenne :</strong> ${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
       <div class="stat-item"><strong>Âmes gagnées :</strong> ${data.nouveaux}</div>
+      <div class="stat-item"><strong>Nouveaux venus :</strong> ${data.nouveauxVenus}</div>
       <div class="stat-item"><strong>Moyenne offrandes/culte :</strong> ${fc(data.cultes > 0 ? data.totalRecettes / data.cultes : 0)}</div>
+    </div>
+    
+    <div style="font-size:8pt;font-weight:700;color:#6b7280;margin-bottom:6px;text-transform:uppercase;">Détail de la Présence Moyenne</div>
+    <div class="attendance-grid">
+      <div class="att-box">
+        <div class="att-val">${data.cultes > 0 ? Math.round(data.presencePapas / data.cultes) : 0}</div>
+        <div class="att-lbl">Papas</div>
+      </div>
+      <div class="att-box">
+        <div class="att-val">${data.cultes > 0 ? Math.round(data.presenceMamans / data.cultes) : 0}</div>
+        <div class="att-lbl">Mamans</div>
+      </div>
+      <div class="att-box">
+        <div class="att-val">${data.cultes > 0 ? Math.round(data.presenceFreres / data.cultes) : 0}</div>
+        <div class="att-lbl">Frères</div>
+      </div>
+      <div class="att-box">
+        <div class="att-val">${data.cultes > 0 ? Math.round(data.presenceSoeurs / data.cultes) : 0}</div>
+        <div class="att-lbl">Sœurs</div>
+      </div>
+      <div class="att-box">
+        <div class="att-val">${data.cultes > 0 ? Math.round(data.presenceEnfants / data.cultes) : 0}</div>
+        <div class="att-lbl">Enfants</div>
+      </div>
+      <div class="att-box total">
+        <div class="att-val">${data.cultes > 0 ? Math.round(data.presence / data.cultes) : 0}</div>
+        <div class="att-lbl">Moy. Totale</div>
+      </div>
     </div>
   </div>
 
