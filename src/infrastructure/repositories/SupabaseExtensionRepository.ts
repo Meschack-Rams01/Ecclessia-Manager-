@@ -7,19 +7,19 @@ export class SupabaseExtensionRepository implements ExtensionRepository {
   private readonly client = getSupabaseClient();
 
   async list(): Promise<Extension[]> {
-    const { data, error } = await this.client.from("extensions").select("id,data");
+    const { data, error } = await this.client.from("extensions").select("id,data,password");
     if (error) throw error;
     return ((data || []) as JsonRow<Extension>[]).map((r) => r.data).filter(Boolean);
   }
 
   async get(id: string): Promise<Extension | null> {
-    const { data, error } = await this.client.from("extensions").select("id,data").eq("id", id).maybeSingle();
+    const { data, error } = await this.client.from("extensions").select("id,data,password").eq("id", id).maybeSingle();
     if (error) throw error;
     return (data as JsonRow<Extension> | null)?.data ?? null;
   }
 
   async upsert(ext: Extension): Promise<void> {
-    const { error } = await this.client.from("extensions").upsert({ id: ext.id, data: ext }, { onConflict: "id" });
+    const { error } = await this.client.from("extensions").upsert({ id: ext.id, data: ext, password: ext.password }, { onConflict: "id" });
     if (error) throw error;
   }
 

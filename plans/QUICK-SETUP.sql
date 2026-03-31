@@ -7,8 +7,13 @@
 CREATE TABLE IF NOT EXISTS extensions (
   id TEXT PRIMARY KEY,
   data JSONB NOT NULL,
+  password TEXT DEFAULT '123456',
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for existing data (copy from JSONB to physical column)
+UPDATE extensions SET password = data->>'password' WHERE password IS NULL;
+
 
 -- Step 2: Create rapports table  
 CREATE TABLE IF NOT EXISTS rapports (
@@ -36,7 +41,8 @@ ALTER TABLE rapports DISABLE ROW LEVEL SECURITY;
 ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
 
 -- Step 6: Insert sample data with passwords
-INSERT INTO extensions (id, data) VALUES
+-- Step 6: Insert sample data with passwords
+INSERT INTO extensions (id, data, password) VALUES
 ('ext_nic', '{
   "id": "ext_nic",
   "nom": "Nicosie Centre",
@@ -56,7 +62,7 @@ INSERT INTO extensions (id, data) VALUES
   "password": "nicosie123",
   "devise": "EUR",
   "symbole": "€"
-}'::jsonb),
+}'::jsonb, 'nicosie123'),
 
 ('ext_lim', '{
   "id": "ext_lim",
@@ -77,7 +83,7 @@ INSERT INTO extensions (id, data) VALUES
   "password": "limassol123",
   "devise": "EUR",
   "symbole": "€"
-}'::jsonb),
+}'::jsonb, 'limassol123'),
 
 ('ext_lar', '{
   "id": "ext_lar",
@@ -98,8 +104,8 @@ INSERT INTO extensions (id, data) VALUES
   "password": "larnaca123",
   "devise": "EUR",
   "symbole": "€"
-}'::jsonb)
-ON CONFLICT (id) DO NOTHING;
+}'::jsonb, 'larnaca123')
+ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password, data = EXCLUDED.data;
 
 -- Verify tables were created
 SELECT 'extensions' as table_name, count(*) as row_count FROM extensions

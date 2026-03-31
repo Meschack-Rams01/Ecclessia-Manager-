@@ -37,7 +37,7 @@ export async function saveExtToSupabase(ext: Extension): Promise<boolean> {
   try {
     const { error } = await client
       .from("extensions")
-      .upsert({ id: ext.id, data: ext }, { onConflict: "id" });
+      .upsert({ id: ext.id, data: ext, password: ext.password }, { onConflict: "id" });
     if (error) {
       logger.error("saveExtToSupabase.failed", error, { extId: ext.id });
       return false;
@@ -198,7 +198,7 @@ export function subscribeToRapports(
 export async function syncFromSupabase(showError?: (msg: string) => void): Promise<void> {
   const client = getClient();
   try {
-    const { data: extRows, error: extErr } = await client.from("extensions").select("data");
+    const { data: extRows, error: extErr } = await client.from("extensions").select("id,data,password");
     if (!extErr && extRows) {
       const exts = extRows.map((r: any) => r.data).filter(Boolean);
       if (exts.length) localStorage.setItem(K.EXT, JSON.stringify(exts));

@@ -58,8 +58,13 @@ In your Supabase dashboard, go to the **SQL Editor** and run the following queri
 CREATE TABLE IF NOT EXISTS extensions (
   id TEXT PRIMARY KEY,
   data JSONB NOT NULL,
+  password TEXT DEFAULT '123456',
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for existing data (copy from JSONB to physical column)
+UPDATE extensions SET password = data->>'password' WHERE password IS NULL;
+
 
 -- Rapports table (service reports)
 CREATE TABLE IF NOT EXISTS rapports (
@@ -96,7 +101,12 @@ CREATE TABLE IF NOT EXISTS depenses_supplementaires (
 ```sql
 -- For existing rapports table (add if not exists)
 ALTER TABLE rapports ADD COLUMN IF NOT EXISTS devise_recue TEXT DEFAULT 'EUR';
-ALTER TABLE rappports ADD COLUMN IF NOT EXISTS taux_change DECIMAL(10,4) DEFAULT 1;
+ALTER TABLE rapports ADD COLUMN IF NOT EXISTS taux_change DECIMAL(10,4) DEFAULT 1;
+
+-- For existing extensions table (add password and migrate data)
+ALTER TABLE extensions ADD COLUMN IF NOT EXISTS password TEXT DEFAULT '123456';
+UPDATE extensions SET password = data->>'password' WHERE password IS NULL;
+ALTER TABLE extensions ALTER COLUMN password SET DEFAULT '123456';
 
 -- Note: The JSONB 'data' field also stores this info for flexibility
 ```
@@ -221,56 +231,6 @@ npm run dev
 3. Try logging in with the credentials you created
 
 ---
-
-## Step 8: Seed Initial Data (Optional)
-
-Run this SQL to add sample extensions:
-
-```sql
-INSERT INTO extensions (id, data) VALUES
-('ext_nic', '{
-  "id": "ext_nic",
-  "nom": "Nicosie Centre",
-  "couleur": "#8B5CF6",
-  "ville": "Nicosie",
-  "pays": "Chypre",
-  "adresse": "12 Avenue de la Paix, Nicosie",
-  "dateCreation": "2018-03-15",
-  "pasteur": {
-    "nom": "Pasteur Emmanuel Kabila",
-    "email": "e.kabila@eic.cy",
-    "tel": "+357 99 123 456"
-  },
-  "coordinateur": "Frère David Mutombo",
-  "secretaire": "Sœur Rachel Lukusa",
-  "tresorier": "Frère Jean-Paul Ngoy",
-  "devise": "EUR",
-  "symbole": "€"
-}'::jsonb),
-('ext_lim', '{
-  "id": "ext_lim",
-  "nom": "Limassol Sud",
-  "couleur": "#059669",
-  "ville": "Limassol",
-  "pays": "Chypre",
-  "adresse": "45 Rue des Flamboyants, Limassol",
-  "dateCreation": "2019-07-20",
-  "pasteur": {
-    "nom": "Pasteur Pierre Kabasele",
-    "email": "p.kabasele@eic.cy",
-    "tel": "+357 99 654 321"
-  },
-  "coordinateur": "Frère Samuel Banza",
-  "secretaire": "Sœur Esther Mwamba",
-  "tresorier": "Frère Isaac Tshimanga",
-  "devise": "EUR",
-  "symbole": "€"
-}'::jsonb);
-```
-
----
-
-## Troubleshooting
 
 ### "Supabase is not configured" Warning
 

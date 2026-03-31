@@ -167,7 +167,7 @@ export const Store = {
         const client = getSupabaseClient();
         const { error } = await client
           .from("extensions")
-          .upsert({ id: ext.id, data: ext }, { onConflict: "id" });
+          .upsert({ id: ext.id, data: ext, password: ext.password }, { onConflict: "id" });
         if (error) {
           logger.error("syncExtToSupabase.failed", error, { extId: ext.id });
         }

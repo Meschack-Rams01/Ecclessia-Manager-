@@ -8,5 +8,6 @@
 export type JsonRow<T> = {
   id: string;
   data: T;
+  password?: string;
 };
 

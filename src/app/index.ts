@@ -4843,7 +4843,7 @@ window.confirmDelExt = function (id: string) {
     <div class="modal-body"><p style="color:var(--text2)">Supprimer <strong style="color:var(--text)">${ext.nom}</strong> et tous ses rapports ? Action irréversible.</p></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-danger" onclick="closeModal();(window as any)._delExt('${id}')">Confirmer</button>
+      <button class="btn btn-danger" onclick="closeModal();window._delExt('${id}')">Confirmer</button>
     </div>`
   );
 };
@@ -4905,7 +4905,14 @@ window.openExtForm = function (extId: string | null) {
         <div><label>Secrétaire</label><input id="ef-sec" value="${e?.secretaire || ""}"/></div>
         <div><label>Trésorier</label><input id="ef-tres" value="${e?.tresorier || ""}"/></div>
       </div>
-      <!-- Password removed - authentication now handled via Supabase Auth -->
+      <div class="form-section-title mb-12">Accès</div>
+      <div class="form-row">
+        <label>Mot de passe de l'extension *</label>
+        <div class="input-with-hint">
+          <input id="ef-pw" type="text" value="${e?.password || ""}" placeholder="Ex: nicosie123"/>
+          <p class="text-xs text-muted mt-4">Ce mot de passe permettra à l'extension de se connecter à son espace dédié.</p>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
@@ -4943,6 +4950,7 @@ window.saveExtForm = function (extId: string) {
     coordinateur: g("ef-coord"),
     secretaire: g("ef-sec"),
     tresorier: g("ef-tres"),
+    password: g("ef-pw") || "123456",
   };
 
   Promise.resolve()
